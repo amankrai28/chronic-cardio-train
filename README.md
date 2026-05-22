@@ -1,2 +1,2 @@
 # chronic-cardio-train
-Training plans for athletes
+Training plans for endurance athletes
