@@ -7,6 +7,12 @@ import LoadingBar from "@/components/LoadingBar";
 import ProfileCard from "@/components/ProfileCard";
 import { formatTime, type AthleteMetricsRow } from "@/lib/metrics";
 import { formatPace, formatMonthYear, formatStartYear } from "@/lib/utils";
+import {
+  convertPace,
+  formatDistanceWithUnit,
+  paceUnit,
+  type UnitSystem,
+} from "@/lib/units";
 
 type ProfileUser = {
   firstname: string | null;
@@ -16,7 +22,11 @@ type ProfileUser = {
   profile_photo_url: string | null;
 };
 
-type Profile = { user: ProfileUser; metrics: AthleteMetricsRow | null };
+type Profile = {
+  user: ProfileUser;
+  metrics: AthleteMetricsRow | null;
+  unit_system?: UnitSystem;
+};
 
 type Phase = "loading" | "ready" | "insufficient" | "error";
 
@@ -133,12 +143,13 @@ export default function DashboardClient({ firstName }: { firstName: string }) {
 
   // phase === "ready"
   const { user, metrics } = profile as { user: ProfileUser; metrics: AthleteMetricsRow };
+  const system: UnitSystem = profile?.unit_system ?? "metric";
   const fullName = [user.firstname, user.lastname].filter(Boolean).join(" ").toUpperCase() || "ATHLETE";
   const location = [user.city, user.country].filter(Boolean).join(", ");
   const hr = metrics.hr_zone_distribution;
   const hrWarning = hr.has_data ? hr.warning : null;
 
-  const concerns = buildConcerns(metrics, hrWarning?.message ?? null);
+  const concerns = buildConcerns(metrics, hrWarning?.message ?? null, system);
   const races = [...metrics.detected_races].sort((a, b) => b.distance_km - a.distance_km);
 
   return (
@@ -173,19 +184,19 @@ export default function DashboardClient({ firstName }: { firstName: string }) {
           </div>
         </div>
         <p style={{ fontFamily: "var(--font-sans), sans-serif", fontSize: 18, marginTop: "var(--space-4)" }}>
-          <strong>{metrics.total_runs}</strong> runs · <strong>{metrics.total_distance_km}</strong> km lifetime ·{" "}
+          <strong>{metrics.total_runs}</strong> runs · <strong>{formatDistanceWithUnit(metrics.total_distance_km, system)}</strong> lifetime ·{" "}
           <strong>{metrics.total_time_hours}</strong> hours on feet
         </p>
       </ProfileCard>
 
       {/* Card 2: Current Fitness */}
       <ProfileCard caption="YOUR BASE RIGHT NOW">
-        <StatLine label="Weekly average (last 4 weeks)" value={`${metrics.current_weekly_avg_km} km`} />
+        <StatLine label="Weekly average (last 4 weeks)" value={formatDistanceWithUnit(metrics.current_weekly_avg_km, system)} />
         <StatLine label="Runs per week" value={`${metrics.current_runs_per_week}`} />
         <StatLine
           label="Average easy pace"
           value={
-            `${formatPace(metrics.current_avg_pace)} /km` +
+            `${formatPace(convertPace(metrics.current_avg_pace, system))} ${paceUnit(system)}` +
             (metrics.current_avg_hr ? ` @ ${metrics.current_avg_hr} bpm avg` : "")
           }
         />
@@ -198,9 +209,9 @@ export default function DashboardClient({ firstName }: { firstName: string }) {
 
       {/* Card 3: Your Ceiling */}
       <ProfileCard caption="WHAT YOU'VE PROVEN YOU CAN DO">
-        <StatLine label="Peak week ever" value={`${metrics.peak_weekly_volume_km} km`} />
-        <StatLine label="Longest single run" value={`${metrics.longest_single_run_km} km`} />
-        <StatLine label="Peak month" value={`${metrics.peak_monthly_volume_km} km`} />
+        <StatLine label="Peak week ever" value={formatDistanceWithUnit(metrics.peak_weekly_volume_km, system)} />
+        <StatLine label="Longest single run" value={formatDistanceWithUnit(metrics.longest_single_run_km, system)} />
+        <StatLine label="Peak month" value={formatDistanceWithUnit(metrics.peak_monthly_volume_km, system)} />
         {metrics.fastest_10k_time_seconds ? (
           <StatLine label="Best 10k effort" value={formatTime(metrics.fastest_10k_time_seconds)} />
         ) : null}
@@ -289,7 +300,7 @@ export default function DashboardClient({ firstName }: { firstName: string }) {
                   {r.name ?? "Race"}
                 </span>
                 <span style={{ fontFamily: "var(--font-mono), monospace", fontSize: 14, color: "var(--mid-gray)" }}>
-                  {r.distance_km} km · {formatMonthYear(r.date)} · {r.time_formatted}
+                  {formatDistanceWithUnit(r.distance_km, system)} · {formatMonthYear(r.date)} · {r.time_formatted}
                 </span>
               </li>
             ))}
@@ -308,7 +319,7 @@ export default function DashboardClient({ firstName }: { firstName: string }) {
 
 type Concern = { kind: "warn" | "ok"; text: string };
 
-function buildConcerns(metrics: AthleteMetricsRow, hrWarningMessage: string | null): Concern[] {
+function buildConcerns(metrics: AthleteMetricsRow, hrWarningMessage: string | null, system: UnitSystem): Concern[] {
   const concerns: Concern[] = [];
 
   for (const gap of metrics.detected_gaps.filter((g) => g.is_likely_injury).slice(0, 3)) {
@@ -336,7 +347,7 @@ function buildConcerns(metrics: AthleteMetricsRow, hrWarningMessage: string | nu
   if (longestRace) {
     concerns.push({
       kind: "ok",
-      text: `You've completed ${longestRace.distance_km} km before (${longestRace.time_formatted}, ${formatMonthYear(longestRace.date)})`,
+      text: `You've completed ${formatDistanceWithUnit(longestRace.distance_km, system)} before (${longestRace.time_formatted}, ${formatMonthYear(longestRace.date)})`,
     });
   }
 

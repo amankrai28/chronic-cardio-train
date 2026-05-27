@@ -1,5 +1,6 @@
 import type { DailyPlanDay, DayType } from "@/lib/plan-builder";
 import { formatShortDate } from "@/lib/utils";
+import { formatDistanceWithUnit, localizeText, type UnitSystem } from "@/lib/units";
 
 // Run-type accents stay within ink / newsprint / Signal Orange + grays.
 // The left border + chip treatment encodes type without introducing new hues.
@@ -62,7 +63,7 @@ const labelStyle: React.CSSProperties = {
   textTransform: "uppercase",
 };
 
-export default function DayRow({ day }: { day: DailyPlanDay }) {
+export default function DayRow({ day, system = "metric" }: { day: DailyPlanDay; system?: UnitSystem }) {
   const meta = TYPE_META[day.type];
   const isRest = day.type === "rest";
 
@@ -85,20 +86,20 @@ export default function DayRow({ day }: { day: DailyPlanDay }) {
         <span style={{ ...chipBase, ...meta.chip }}>{meta.label}</span>
         {!isRest ? (
           <span style={{ fontFamily: "var(--font-sans), sans-serif", fontSize: 15, fontWeight: 600 }}>
-            {day.distance_km > 0 ? `${day.distance_km} km` : ""}
+            {day.distance_km > 0 ? formatDistanceWithUnit(day.distance_km, system) : ""}
             {day.time_minutes > 0 ? ` · ${formatMinutes(day.time_minutes)}` : ""}
-            {day.intensity ? ` · ${day.intensity}` : ""}
+            {day.intensity ? ` · ${localizeText(day.intensity, system)}` : ""}
           </span>
         ) : (
           <span style={{ fontFamily: "var(--font-sans), sans-serif", fontSize: 15, color: "var(--mid-gray)" }}>
-            {day.description || "Full rest"}
+            {localizeText(day.description || "Full rest", system)}
           </span>
         )}
       </div>
 
       {!isRest && day.description ? (
         <p style={{ margin: 0, fontFamily: "var(--font-sans), sans-serif", fontSize: 15 }}>
-          {day.description}
+          {localizeText(day.description, system)}
         </p>
       ) : null}
 
@@ -114,20 +115,20 @@ export default function DayRow({ day }: { day: DailyPlanDay }) {
             lineHeight: 1.5,
           }}
         >
-          {day.workout_details}
+          {localizeText(day.workout_details, system)}
         </p>
       ) : null}
 
       {day.strength ? (
         <p style={{ margin: 0, fontFamily: "var(--font-sans), sans-serif", fontSize: 14 }}>
           <span style={{ ...labelStyle, color: "var(--accent)" }}>Strength · </span>
-          {day.strength}
+          {localizeText(day.strength, system)}
         </p>
       ) : null}
 
       {day.notes ? (
         <p style={{ margin: 0, fontFamily: "var(--font-sans), sans-serif", fontSize: 14, color: "var(--mid-gray)", fontStyle: "italic" }}>
-          {day.notes}
+          {localizeText(day.notes, system)}
         </p>
       ) : null}
     </div>

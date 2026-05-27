@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { DailyPlanDay, WeeklyPlanWeek } from "@/lib/plan-builder";
 import { formatDateRange } from "@/lib/utils";
+import { formatDistanceWithUnit, localizeText, type UnitSystem } from "@/lib/units";
 import PhaseIndicator from "@/components/PhaseIndicator";
 import DayRow from "@/components/DayRow";
 
@@ -10,6 +11,7 @@ type WeekCardProps = {
   week: WeeklyPlanWeek;
   days: DailyPlanDay[];
   defaultExpanded?: boolean;
+  system?: UnitSystem;
 };
 
 const metaLabel: React.CSSProperties = {
@@ -31,7 +33,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default function WeekCard({ week, days, defaultExpanded = false }: WeekCardProps) {
+export default function WeekCard({ week, days, defaultExpanded = false, system = "metric" }: WeekCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   return (
@@ -93,16 +95,16 @@ export default function WeekCard({ week, days, defaultExpanded = false }: WeekCa
         </div>
 
         <div style={{ display: "flex", gap: "var(--space-8)", flexWrap: "wrap" }}>
-          <Stat label="Volume" value={`${week.total_volume_km} km`} />
-          <Stat label="Long run" value={`${week.long_run_km} km`} />
-          {week.b2b_km ? <Stat label="B2B" value={`${week.b2b_km} km`} /> : null}
-          <Stat label="Quality" value={week.quality_summary || "—"} />
+          <Stat label="Volume" value={formatDistanceWithUnit(week.total_volume_km, system)} />
+          <Stat label="Long run" value={formatDistanceWithUnit(week.long_run_km, system)} />
+          {week.b2b_km ? <Stat label="B2B" value={formatDistanceWithUnit(week.b2b_km, system)} /> : null}
+          <Stat label="Quality" value={localizeText(week.quality_summary || "—", system)} />
           <Stat label="Strength" value={`${week.strength_sessions}×`} />
         </div>
 
         {week.notes ? (
           <p style={{ margin: 0, fontFamily: "var(--font-sans), sans-serif", fontSize: 14, color: "var(--mid-gray)", lineHeight: 1.5 }}>
-            {week.notes}
+            {localizeText(week.notes, system)}
           </p>
         ) : null}
       </div>
@@ -110,7 +112,7 @@ export default function WeekCard({ week, days, defaultExpanded = false }: WeekCa
       {expanded ? (
         <div style={{ borderTop: "3px solid var(--ink)" }}>
           {days.map((d) => (
-            <DayRow key={d.day} day={d} />
+            <DayRow key={d.day} day={d} system={system} />
           ))}
         </div>
       ) : null}

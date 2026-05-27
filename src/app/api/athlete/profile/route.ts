@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { supabaseAdmin, type User } from "@/lib/supabase";
 import type { AthleteMetricsRow } from "@/lib/metrics";
+import { getUnitSystem } from "@/lib/units";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export async function GET() {
   const { data: user, error: userError } = await supabaseAdmin
     .from("users")
     .select(
-      "id, strava_athlete_id, firstname, lastname, city, country, profile_photo_url, created_at",
+      "id, strava_athlete_id, firstname, lastname, city, country, profile_photo_url, measurement_preference, created_at",
     )
     .eq("id", userId)
     .single<Omit<User, "strava_access_token" | "strava_refresh_token" | "strava_token_expires_at" | "updated_at">>();
@@ -31,5 +32,10 @@ export async function GET() {
     .eq("user_id", userId)
     .maybeSingle<AthleteMetricsRow>();
 
-  return NextResponse.json({ user, metrics: metrics ?? null });
+  // Derive the display unit system, then drop the raw preference from the
+  // exposed user object — the client only needs unit_system.
+  const { measurement_preference, ...publicUser } = user;
+  const unit_system = getUnitSystem(measurement_preference);
+
+  return NextResponse.json({ user: publicUser, metrics: metrics ?? null, unit_system });
 }

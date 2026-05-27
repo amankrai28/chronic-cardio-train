@@ -3,6 +3,7 @@ import { getSession } from "@/lib/session";
 import { supabaseAdmin } from "@/lib/supabase";
 import type { AthleteMetricsRow, GoalType, RaceDistance } from "@/lib/metrics";
 import { buildPlan } from "@/lib/plan-builder";
+import { getUnitSystem } from "@/lib/units";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "no_metrics" }, { status: 400 });
   }
 
+  // The plan is always built in metric; we only record the athlete's display
+  // preference in plan_metadata so the view/export layers know how to render it.
+  const { data: userRow } = await supabaseAdmin
+    .from("users")
+    .select("measurement_preference")
+    .eq("id", userId)
+    .maybeSingle<{ measurement_preference: string | null }>();
+  const unitSystem = getUnitSystem(userRow?.measurement_preference ?? null);
+
   const built = buildPlan(
     {
       race_name: raceName,
@@ -90,6 +100,7 @@ export async function POST(request: NextRequest) {
       peak_volume_km: peakVolumeKm,
       training_days_per_week: trainingDays,
       injury_conservative: injuryConservative,
+      unit_system: unitSystem,
     },
     metrics,
   );

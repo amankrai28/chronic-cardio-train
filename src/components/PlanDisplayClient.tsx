@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import Link from "next/link";
 import type { DailyPlan, PlanMetadata, WeeklyPlan } from "@/lib/plan-builder";
 import { formatTime } from "@/lib/metrics";
+import { localizeText, type UnitSystem } from "@/lib/units";
 import VolumeChart from "@/components/VolumeChart";
 import WeekCard from "@/components/WeekCard";
 import PhaseIndicator from "@/components/PhaseIndicator";
@@ -76,8 +77,9 @@ export default function PlanDisplayClient({ plan }: { plan: PlanForDisplay }) {
     [weeks],
   );
 
-  const keyChange = plan.plan_metadata?.key_change ?? summary.key_change;
-  const warnings = plan.plan_metadata?.warnings ?? [];
+  const system: UnitSystem = plan.plan_metadata?.unit_system ?? "metric";
+  const keyChange = localizeText(plan.plan_metadata?.key_change ?? summary.key_change, system);
+  const warnings = (plan.plan_metadata?.warnings ?? []).map((w) => localizeText(w, system));
 
   return (
     <section
@@ -156,7 +158,7 @@ export default function PlanDisplayClient({ plan }: { plan: PlanForDisplay }) {
       </div>
 
       {/* --- Volume chart --- */}
-      <VolumeChart weeks={weeks} peak={plan.peak_volume_km} />
+      <VolumeChart weeks={weeks} peak={plan.peak_volume_km} system={system} />
 
       {/* --- Weekly cards --- */}
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
@@ -166,6 +168,7 @@ export default function PlanDisplayClient({ plan }: { plan: PlanForDisplay }) {
             week={w}
             days={dailyByWeek.get(w.week)?.days ?? []}
             defaultExpanded={i === currentIdx}
+            system={system}
           />
         ))}
       </div>

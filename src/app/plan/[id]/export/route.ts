@@ -3,6 +3,7 @@ import { getSession } from "@/lib/session";
 import { supabaseAdmin } from "@/lib/supabase";
 import { formatTime } from "@/lib/metrics";
 import { formatDateRange, formatShortDate } from "@/lib/utils";
+import { formatDistanceWithUnit, localizeText, type UnitSystem } from "@/lib/units";
 import type { DailyPlan, PlanMetadata, WeeklyPlan } from "@/lib/plan-builder";
 
 export const dynamic = "force-dynamic";
@@ -66,9 +67,10 @@ export async function GET(
   }
 
   const format = request.nextUrl.searchParams.get("format");
+  const system: UnitSystem = plan.plan_metadata?.unit_system ?? "metric";
 
   if (format === "ics") {
-    const ics = buildIcs(plan);
+    const ics = buildIcs(plan, system);
     return new NextResponse(ics, {
       headers: {
         "Content-Type": "text/calendar; charset=utf-8",
@@ -78,7 +80,7 @@ export async function GET(
   }
 
   // Default: print-optimised branded HTML (browser "Save as PDF").
-  return new NextResponse(buildPrintHtml(plan), {
+  return new NextResponse(buildPrintHtml(plan, system), {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
 }
@@ -117,7 +119,7 @@ function toIcsDate(iso: string, offsetDays = 0): string {
   return `${y}${m}${day}`;
 }
 
-function buildIcs(plan: ExportPlan): string {
+function buildIcs(plan: ExportPlan, system: UnitSystem): string {
   const stamp =
     new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
   const lines: string[] = [
@@ -132,15 +134,15 @@ function buildIcs(plan: ExportPlan): string {
     for (const day of week.days) {
       if (day.type === "rest") continue;
 
-      const parts = [day.description];
-      if (day.distance_km > 0) parts.push(`${day.distance_km} km`);
-      if (day.intensity) parts.push(day.intensity);
+      const parts = [localizeText(day.description, system)];
+      if (day.distance_km > 0) parts.push(formatDistanceWithUnit(day.distance_km, system));
+      if (day.intensity) parts.push(localizeText(day.intensity, system));
       const summary = parts.filter(Boolean).join(" · ");
 
       const descPieces = [
-        day.workout_details ? `Workout: ${day.workout_details}` : "",
-        day.strength ? `Strength: ${day.strength}` : "",
-        day.notes ?? "",
+        day.workout_details ? `Workout: ${localizeText(day.workout_details, system)}` : "",
+        day.strength ? `Strength: ${localizeText(day.strength, system)}` : "",
+        day.notes ? localizeText(day.notes, system) : "",
       ].filter(Boolean);
 
       lines.push("BEGIN:VEVENT");
@@ -179,10 +181,10 @@ function formatMinutes(min: number): string {
   return `${m}m`;
 }
 
-function buildPrintHtml(plan: ExportPlan): string {
+function buildPrintHtml(plan: ExportPlan, system: UnitSystem): string {
   const distanceLabel = DISTANCE_LABELS[plan.race_distance] ?? plan.race_distance;
   const summary = plan.weekly_plan.plan_summary;
-  const keyChange = plan.plan_metadata?.key_change ?? summary.key_change;
+  const keyChange = localizeText(plan.plan_metadata?.key_change ?? summary.key_change, system);
   const title = plan.race_name || `${distanceLabel} Plan`;
 
   const dailyByWeek = new Map<number, DailyPlan["weeks"][number]>();
@@ -213,31 +215,31 @@ function buildPrintHtml(plan: ExportPlan): string {
       const rows = days
         .map((d) => {
           if (d.type === "rest") {
-            return `<tr class="rest"><td>${esc(d.day)}</td><td>${esc(formatShortDate(d.date))}</td><td colspan="3"><strong>REST</strong> ${esc(d.notes ?? d.description ?? "")}</td></tr>`;
+            return `<tr class="rest"><td>${esc(d.day)}</td><td>${esc(formatShortDate(d.date))}</td><td colspan="3"><strong>REST</strong> ${esc(localizeText(d.notes ?? d.description ?? "", system))}</td></tr>`;
           }
           const detail = [
-            d.description ? `<strong>${esc(d.description)}</strong>` : "",
-            d.workout_details ? `<div class="workout">${esc(d.workout_details)}</div>` : "",
-            d.strength ? `<div class="sub">Strength: ${esc(d.strength)}</div>` : "",
-            d.notes ? `<div class="sub note">${esc(d.notes)}</div>` : "",
+            d.description ? `<strong>${esc(localizeText(d.description, system))}</strong>` : "",
+            d.workout_details ? `<div class="workout">${esc(localizeText(d.workout_details, system))}</div>` : "",
+            d.strength ? `<div class="sub">Strength: ${esc(localizeText(d.strength, system))}</div>` : "",
+            d.notes ? `<div class="sub note">${esc(localizeText(d.notes, system))}</div>` : "",
           ]
             .filter(Boolean)
             .join("");
           const dist = [
-            d.distance_km > 0 ? `${esc(d.distance_km)} km` : "",
+            d.distance_km > 0 ? esc(formatDistanceWithUnit(d.distance_km, system)) : "",
             d.time_minutes > 0 ? formatMinutes(d.time_minutes) : "",
           ]
             .filter(Boolean)
             .join("<br>");
-          return `<tr><td>${esc(d.day)}</td><td>${esc(formatShortDate(d.date))}</td><td><span class="chip chip-${esc(d.type)}">${esc(d.type)}</span></td><td>${dist}</td><td>${detail}${d.intensity ? `<div class="sub">${esc(d.intensity)}</div>` : ""}</td></tr>`;
+          return `<tr><td>${esc(d.day)}</td><td>${esc(formatShortDate(d.date))}</td><td><span class="chip chip-${esc(d.type)}">${esc(d.type)}</span></td><td>${dist}</td><td>${detail}${d.intensity ? `<div class="sub">${esc(localizeText(d.intensity, system))}</div>` : ""}</td></tr>`;
         })
         .join("");
 
       const weekMeta = [
-        `${esc(w.total_volume_km)} km`,
-        `Long ${esc(w.long_run_km)} km`,
-        w.b2b_km ? `B2B ${esc(w.b2b_km)} km` : "",
-        w.quality_summary ? `Quality: ${esc(w.quality_summary)}` : "",
+        esc(formatDistanceWithUnit(w.total_volume_km, system)),
+        `Long ${esc(formatDistanceWithUnit(w.long_run_km, system))}`,
+        w.b2b_km ? `B2B ${esc(formatDistanceWithUnit(w.b2b_km, system))}` : "",
+        w.quality_summary ? `Quality: ${esc(localizeText(w.quality_summary, system))}` : "",
         `Strength ${esc(w.strength_sessions)}×`,
         w.is_cutback ? "CUTBACK" : "",
       ]
@@ -249,7 +251,7 @@ function buildPrintHtml(plan: ExportPlan): string {
           <div class="week-head">
             <h2>WK ${esc(w.week)} <span class="phase-tag">${esc(w.phase)}</span> <span class="dates">${esc(formatDateRange(w.date_start))}</span></h2>
             <div class="week-meta">${weekMeta}</div>
-            ${w.notes ? `<div class="week-notes">${esc(w.notes)}</div>` : ""}
+            ${w.notes ? `<div class="week-notes">${esc(localizeText(w.notes, system))}</div>` : ""}
           </div>
           <table>
             <thead><tr><th>Day</th><th>Date</th><th>Type</th><th>Dist</th><th>Session</th></tr></thead>

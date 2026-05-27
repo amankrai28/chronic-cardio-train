@@ -1,14 +1,20 @@
 import type { WeeklyPlanWeek } from "@/lib/plan-builder";
+import { convertDistance, distanceUnit, type UnitSystem } from "@/lib/units";
 
 type VolumeChartProps = {
   weeks: WeeklyPlanWeek[];
   peak: number;
+  system?: UnitSystem;
 };
 
 // Hand-built SVG bar chart — sharp rectangles, no gradients/shadows, on-brand.
 // Signal Orange bars; cutback weeks are hollow (outlined) to read as distinct;
 // a dashed ink line marks the peak-volume target.
-export default function VolumeChart({ weeks, peak }: VolumeChartProps) {
+export default function VolumeChart({ weeks, peak, system = "metric" }: VolumeChartProps) {
+  // Bars are drawn from km values (ratios are unit-invariant); only the printed
+  // numbers and labels are localized.
+  const unit = distanceUnit(system);
+  const peakLabel = Math.round(convertDistance(peak, system));
   const slot = 34;
   const padLeft = 12;
   const padRight = 12;
@@ -40,7 +46,7 @@ export default function VolumeChart({ weeks, peak }: VolumeChartProps) {
   return (
     <div style={{ border: "3px solid var(--ink)", background: "var(--newsprint)", padding: "var(--space-6)" }}>
       <span className="caption" style={{ display: "block", marginBottom: "var(--space-4)" }}>
-        Volume Progression (km / week)
+        Volume Progression ({unit} / week)
       </span>
       <div style={{ overflowX: "auto" }}>
         <svg
@@ -48,7 +54,7 @@ export default function VolumeChart({ weeks, peak }: VolumeChartProps) {
           width="100%"
           style={{ minWidth: Math.min(width, 320), display: "block" }}
           role="img"
-          aria-label={`Weekly volume across ${weeks.length} weeks, peaking near ${peak} km`}
+          aria-label={`Weekly volume across ${weeks.length} weeks, peaking near ${peakLabel} ${unit}`}
         >
           {/* peak reference line */}
           <line
@@ -61,7 +67,7 @@ export default function VolumeChart({ weeks, peak }: VolumeChartProps) {
             strokeDasharray="6 5"
           />
           <text x={padLeft + 2} y={peakY - 5} fill="var(--ink)" fontWeight={700} style={monoLabel}>
-            PEAK {peak}
+            PEAK {peakLabel}
           </text>
 
           {weeks.map((w, i) => {

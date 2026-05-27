@@ -29,6 +29,7 @@ export type User = {
   city: string | null;
   country: string | null;
   profile_photo_url: string | null;
+  measurement_preference: string | null; // 'feet' | 'meters'
   created_at: string;
   updated_at: string;
 };
