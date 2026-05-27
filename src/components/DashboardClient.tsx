@@ -28,6 +28,7 @@ export default function DashboardClient({ firstName }: { firstName: string }) {
   const [phase, setPhase] = useState<Phase>("loading");
   const [loadingText, setLoadingText] = useState("Pulling your runs…");
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [showFull, setShowFull] = useState(false);
 
   async function run() {
     setPhase("loading");
@@ -205,6 +206,37 @@ export default function DashboardClient({ firstName }: { firstName: string }) {
         ) : null}
       </ProfileCard>
 
+      {/* Bottom CTA — surfaced right after the core "wow moment" cards */}
+      <div style={{ display: "flex", justifyContent: "center", marginTop: "var(--space-8)" }}>
+        <Link href="/plan/setup" className="btn-orange">
+          Get My Training Plan →
+        </Link>
+      </div>
+
+      {/* Toggle for the detailed analysis below */}
+      <button
+        type="button"
+        onClick={() => setShowFull((v) => !v)}
+        aria-expanded={showFull}
+        style={{
+          alignSelf: "center",
+          minHeight: 44,
+          padding: "12px 24px",
+          fontFamily: "var(--font-mono), monospace",
+          fontSize: 13,
+          letterSpacing: 2,
+          textTransform: "uppercase",
+          background: "var(--newsprint)",
+          color: "var(--ink)",
+          border: "3px solid var(--ink)",
+          cursor: "pointer",
+        }}
+      >
+        {showFull ? "Hide full analysis ▴" : "See full analysis ▾"}
+      </button>
+
+      {showFull ? (
+        <>
       {/* Card 4: Consistency Pattern */}
       <ProfileCard caption="YOUR TRAINING RHYTHM">
         {metrics.seasonal_pattern.best_month || metrics.seasonal_pattern.worst_month ? (
@@ -268,13 +300,8 @@ export default function DashboardClient({ firstName }: { firstName: string }) {
           </p>
         )}
       </ProfileCard>
-
-      {/* Bottom CTA */}
-      <div style={{ display: "flex", justifyContent: "center", marginTop: "var(--space-8)" }}>
-        <Link href="/plan/setup" className="btn-orange">
-          Get My Training Plan →
-        </Link>
-      </div>
+        </>
+      ) : null}
     </section>
   );
 }
