@@ -15,6 +15,7 @@ export type StravaAthlete = {
   city: string | null;
   country: string | null;
   profile: string | null;
+  measurement_preference?: string | null; // 'feet' | 'meters'
 };
 
 export type StravaTokenResponse = {

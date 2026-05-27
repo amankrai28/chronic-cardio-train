@@ -9,6 +9,19 @@ import {
   type GoalType,
   type RaceDistance,
 } from "@/lib/metrics";
+import {
+  convertDistance,
+  displayToKm,
+  distanceUnit,
+  formatDistanceWithUnit,
+  localizeText,
+  type UnitSystem,
+} from "@/lib/units";
+
+// Slider bounds are authored in km; convert to the display system and snap to
+// the nearest 5 so the range input stays on-grid.
+const roundTo5 = (n: number) => Math.round(n / 5) * 5;
+const boundIn = (km: number, system: UnitSystem) => roundTo5(convertDistance(km, system));
 
 type Card = {
   key: string;
@@ -111,12 +124,13 @@ export default function PlanSetupClient({ detectedRaces }: { detectedRaces: Dete
 
   // --- Section B: inferred defaults ---
   const [cards, setCards] = useState<Card[]>([]);
+  const [unitSystem, setUnitSystem] = useState<UnitSystem>("metric");
   const [loadingDefaults, setLoadingDefaults] = useState(true);
   const [defaultsError, setDefaultsError] = useState(false);
   const latestReq = useRef(0);
 
-  const [startVolumeKm, setStartVolumeKm] = useState(0);
-  const [peakVolumeKm, setPeakVolumeKm] = useState(0);
+  const [startVolume, setStartVolume] = useState(0);
+  const [peakVolume, setPeakVolume] = useState(0);
   const [trainingDays, setTrainingDays] = useState(5);
   const [injuryConservative, setInjuryConservative] = useState(true);
 
@@ -152,8 +166,9 @@ export default function PlanSetupClient({ detectedRaces }: { detectedRaces: Dete
       signal: controller.signal,
     })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("defaults_failed"))))
-      .then((data: { cards?: Card[] }) => {
+      .then((data: { cards?: Card[]; unit_system?: UnitSystem }) => {
         if (reqId !== latestReq.current) return;
+        setUnitSystem(data.unit_system ?? "metric");
         setCards(data.cards ?? []);
         setLoadingDefaults(false);
       })
@@ -169,18 +184,20 @@ export default function PlanSetupClient({ detectedRaces }: { detectedRaces: Dete
   // Seed the editable values from freshly fetched cards, unless the user has
   // manually overridden the corresponding field.
   useEffect(() => {
+    // Card values are km; seed the sliders in the user's display units, snapped
+    // to the step so the range input stays on-grid.
     const sv = cards.find((c) => c.key === "starting_volume");
-    if (sv && !startTouched.current) setStartVolumeKm(parseLeadingNumber(sv.value));
+    if (sv && !startTouched.current) setStartVolume(roundTo5(convertDistance(parseLeadingNumber(sv.value), unitSystem)));
 
     const pv = cards.find((c) => c.key === "peak_volume");
-    if (pv && !peakTouched.current) setPeakVolumeKm(parseLeadingNumber(pv.value));
+    if (pv && !peakTouched.current) setPeakVolume(roundTo5(convertDistance(parseLeadingNumber(pv.value), unitSystem)));
 
     const td = cards.find((c) => c.key === "training_days");
     if (td && !trainingTouched.current) setTrainingDays(parseLeadingNumber(td.value));
 
     const inj = cards.find((c) => c.key === "injury_conservative");
     if (inj && !injuryTouched.current) setInjuryConservative(true);
-  }, [cards]);
+  }, [cards, unitSystem]);
 
   const startCard = cards.find((c) => c.key === "starting_volume");
   const peakCard = cards.find((c) => c.key === "peak_volume");
@@ -214,8 +231,8 @@ export default function PlanSetupClient({ detectedRaces }: { detectedRaces: Dete
             goalType === "beat_time" ? previousRace?.time_seconds ?? null : null,
           target_time_seconds:
             goalType === "beat_time" ? parseHmsToSeconds(targetTimeStr) : null,
-          start_volume_km: startVolumeKm,
-          peak_volume_km: peakVolumeKm,
+          start_volume_km: Math.round(displayToKm(startVolume, unitSystem)),
+          peak_volume_km: Math.round(displayToKm(peakVolume, unitSystem)),
           training_days_per_week: trainingDays,
           injury_conservative: injuryCard ? injuryConservative : false,
         }),
@@ -338,7 +355,7 @@ export default function PlanSetupClient({ detectedRaces }: { detectedRaces: Dete
                   <strong>{formatTime(previousRace.time_seconds)}</strong>
                   <span style={{ color: "var(--mid-gray)" }}>
                     {" "}
-                    ({previousRace.distance_km} km
+                    ({formatDistanceWithUnit(previousRace.distance_km, unitSystem)}
                     {previousRace.name ? ` · ${previousRace.name}` : ""})
                   </span>
                 </p>
@@ -391,8 +408,8 @@ export default function PlanSetupClient({ detectedRaces }: { detectedRaces: Dete
             {startCard ? (
               <SetupCard
                 title={startCard.title}
-                value={`${startVolumeKm} km/week`}
-                rationale={startCard.rationale}
+                value={`${startVolume} ${distanceUnit(unitSystem)}/week`}
+                rationale={localizeText(startCard.rationale, unitSystem)}
                 confirmed={startConfirmed}
               >
                 <ConfirmRow
@@ -409,13 +426,13 @@ export default function PlanSetupClient({ detectedRaces }: { detectedRaces: Dete
                 />
                 {startEditing ? (
                   <SliderRow
-                    min={40}
-                    max={100}
+                    min={boundIn(40, unitSystem)}
+                    max={boundIn(100, unitSystem)}
                     step={5}
-                    value={startVolumeKm}
-                    unit="km/wk"
+                    value={startVolume}
+                    unit={`${distanceUnit(unitSystem)}/wk`}
                     onChange={(v) => {
-                      setStartVolumeKm(v);
+                      setStartVolume(v);
                       startTouched.current = true;
                     }}
                   />
@@ -426,8 +443,8 @@ export default function PlanSetupClient({ detectedRaces }: { detectedRaces: Dete
             {peakCard ? (
               <SetupCard
                 title={peakCard.title}
-                value={`${peakVolumeKm} km/week`}
-                rationale={peakCard.rationale}
+                value={`${peakVolume} ${distanceUnit(unitSystem)}/week`}
+                rationale={localizeText(peakCard.rationale, unitSystem)}
                 confirmed={peakConfirmed}
               >
                 <ConfirmRow
@@ -444,13 +461,13 @@ export default function PlanSetupClient({ detectedRaces }: { detectedRaces: Dete
                 />
                 {peakEditing ? (
                   <SliderRow
-                    min={80}
-                    max={160}
+                    min={boundIn(80, unitSystem)}
+                    max={boundIn(160, unitSystem)}
                     step={5}
-                    value={peakVolumeKm}
-                    unit="km/wk"
+                    value={peakVolume}
+                    unit={`${distanceUnit(unitSystem)}/wk`}
                     onChange={(v) => {
-                      setPeakVolumeKm(v);
+                      setPeakVolume(v);
                       peakTouched.current = true;
                     }}
                   />
@@ -462,7 +479,7 @@ export default function PlanSetupClient({ detectedRaces }: { detectedRaces: Dete
               <SetupCard
                 title={trainingCard.title}
                 value={`${trainingDays} days/week`}
-                rationale={trainingCard.rationale}
+                rationale={localizeText(trainingCard.rationale, unitSystem)}
                 confirmed={trainingConfirmed}
               >
                 <ConfirmRow
@@ -501,7 +518,7 @@ export default function PlanSetupClient({ detectedRaces }: { detectedRaces: Dete
               <SetupCard
                 title={injuryCard.title}
                 value={injuryConservative ? "Conservative base phase" : "Standard progression"}
-                rationale={injuryCard.rationale}
+                rationale={localizeText(injuryCard.rationale, unitSystem)}
                 confirmed={injuryConfirmed}
               >
                 <div style={confirmRowStyle}>
@@ -535,7 +552,7 @@ export default function PlanSetupClient({ detectedRaces }: { detectedRaces: Dete
               <SetupCard
                 title={hrCard.title}
                 value={typeof hrCard.value === "number" ? String(hrCard.value) : hrCard.value}
-                rationale={hrCard.rationale}
+                rationale={localizeText(hrCard.rationale, unitSystem)}
                 confirmed={hrAck}
               >
                 <div style={confirmRowStyle}>

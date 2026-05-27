@@ -13,6 +13,7 @@ import {
   type GoalType,
   type RaceDistance,
 } from "@/lib/metrics";
+import { getUnitSystem } from "@/lib/units";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,13 @@ export async function GET(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: "db_error" }, { status: 500 });
   }
+
+  const { data: userRow } = await supabaseAdmin
+    .from("users")
+    .select("measurement_preference")
+    .eq("id", userId)
+    .maybeSingle<{ measurement_preference: string | null }>();
+  const unitSystem = getUnitSystem(userRow?.measurement_preference ?? null);
 
   const acts = activities ?? [];
   const now = new Date();
@@ -144,5 +152,10 @@ export async function GET(request: NextRequest) {
     adjustable: false,
   });
 
-  return NextResponse.json({ race_distance: raceDistance, goal_type: goalType, cards });
+  return NextResponse.json({
+    race_distance: raceDistance,
+    goal_type: goalType,
+    unit_system: unitSystem,
+    cards,
+  });
 }

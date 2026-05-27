@@ -1,5 +1,6 @@
 import type { AthleteMetricsRow, GoalType, RaceDistance } from "@/lib/metrics";
 import { formatPace } from "@/lib/utils";
+import type { UnitSystem } from "@/lib/units";
 
 // Deterministic ultramarathon plan generator. Implements the rules in
 // docs/training-principles.md (§3-§10). No AI is used here — every decision is
@@ -68,6 +69,9 @@ export type PlanMetadata = {
   phases: PlanPhaseSummary[];
   principles_applied: string[];
   warnings: string[];
+  // Display-only: which units the plan should render in. The plan itself is
+  // always stored in metric — this just records the athlete's preference.
+  unit_system: UnitSystem;
 };
 
 export type PlanBuilderParams = {
@@ -82,6 +86,7 @@ export type PlanBuilderParams = {
   peak_volume_km: number;
   training_days_per_week: number;
   injury_conservative: boolean;
+  unit_system: UnitSystem;
 };
 
 export type BuiltPlan = {
@@ -839,6 +844,7 @@ export function buildPlan(
       "Race-nutrition rehearsal from build phase onward",
     ],
     warnings,
+    unit_system: params.unit_system,
   };
 
   const weeklyPlan: WeeklyPlan = {

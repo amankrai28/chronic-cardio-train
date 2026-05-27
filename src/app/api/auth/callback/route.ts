@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
           city: athlete.city,
           country: athlete.country,
           profile_photo_url: athlete.profile,
+          measurement_preference: athlete.measurement_preference ?? null,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "strava_athlete_id" },
