@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import LoadingBar from "@/components/LoadingBar";
 import ProfileCard from "@/components/ProfileCard";
 import { formatTime, type AthleteMetricsRow } from "@/lib/metrics";
@@ -270,9 +271,9 @@ export default function DashboardClient({ firstName }: { firstName: string }) {
 
       {/* Bottom CTA */}
       <div style={{ display: "flex", justifyContent: "center", marginTop: "var(--space-8)" }}>
-        <a href="/plan/setup" className="btn-orange">
+        <Link href="/plan/setup" className="btn-orange">
           Get My Training Plan →
-        </a>
+        </Link>
       </div>
     </section>
   );
