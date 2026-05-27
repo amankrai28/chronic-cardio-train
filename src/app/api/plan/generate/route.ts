@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { supabaseAdmin } from "@/lib/supabase";
-import type { GoalType, RaceDistance } from "@/lib/metrics";
+import type { AthleteMetricsRow, GoalType, RaceDistance } from "@/lib/metrics";
+import { buildPlan } from "@/lib/plan-builder";
 
 export const dynamic = "force-dynamic";
 
@@ -9,15 +10,12 @@ const RACE_DISTANCES: RaceDistance[] = ["50K", "50Mi", "100K", "100Mi", "200Mi"]
 const GOAL_TYPES: GoalType[] = ["finish", "beat_time", "compete"];
 const TERRAINS = ["road", "trail", "mountain"];
 
-const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
-
 function asPositiveNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
 }
 
-// Session 4 stub: persists the confirmed plan parameters so the flow has a real
-// plan id to redirect to. The deterministic plan builder (weekly/daily_plan) is
-// Session 5 — for now weekly_plan is an empty placeholder.
+// Validates the confirmed plan parameters, runs the deterministic plan builder
+// against the athlete's computed metrics, and persists the full weekly/daily plan.
 export async function POST(request: NextRequest) {
   const userId = await getSession();
   if (!userId) {
@@ -57,7 +55,6 @@ export async function POST(request: NextRequest) {
   }
 
   const trainingDays = Math.min(6, Math.max(4, Math.round(trainingDaysRaw)));
-  const planWeeks = Math.max(1, Math.round((raceDate.getTime() - Date.now()) / MS_PER_WEEK));
 
   const raceName =
     typeof body.race_name === "string" && body.race_name.trim() ? body.race_name.trim() : null;
@@ -66,6 +63,36 @@ export async function POST(request: NextRequest) {
   const previousTime = asPositiveNumber(body.previous_time_seconds);
   const targetTime = asPositiveNumber(body.target_time_seconds);
   const injuryConservative = body.injury_conservative === true;
+  const raceDateIso = raceDate.toISOString().slice(0, 10);
+
+  // The plan builder needs the athlete's computed metrics. These are written by
+  // the Strava sync; without them we can't derive paces or HR targets.
+  const { data: metrics } = await supabaseAdmin
+    .from("athlete_metrics")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle<AthleteMetricsRow>();
+
+  if (!metrics) {
+    return NextResponse.json({ error: "no_metrics" }, { status: 400 });
+  }
+
+  const built = buildPlan(
+    {
+      race_name: raceName,
+      race_distance: raceDistance as RaceDistance,
+      race_date: raceDateIso,
+      terrain: validTerrain,
+      goal_type: goalType as GoalType,
+      previous_time_seconds: previousTime,
+      target_time_seconds: targetTime,
+      start_volume_km: startVolumeKm,
+      peak_volume_km: peakVolumeKm,
+      training_days_per_week: trainingDays,
+      injury_conservative: injuryConservative,
+    },
+    metrics,
+  );
 
   const { data, error } = await supabaseAdmin
     .from("plans")
@@ -73,7 +100,7 @@ export async function POST(request: NextRequest) {
       user_id: userId,
       race_name: raceName,
       race_distance: raceDistance,
-      race_date: raceDate.toISOString().slice(0, 10),
+      race_date: raceDateIso,
       terrain: validTerrain,
       goal_type: goalType,
       previous_time_seconds: previousTime,
@@ -82,10 +109,10 @@ export async function POST(request: NextRequest) {
       peak_volume_km: peakVolumeKm,
       training_days_per_week: trainingDays,
       injury_conservative: injuryConservative,
-      plan_weeks: planWeeks,
-      weekly_plan: [],
-      daily_plan: null,
-      plan_metadata: { status: "placeholder", generated_by: "session-4-stub" },
+      plan_weeks: built.plan_weeks,
+      weekly_plan: built.weekly_plan,
+      daily_plan: built.daily_plan,
+      plan_metadata: built.plan_metadata,
     })
     .select("id")
     .single<{ id: string }>();
