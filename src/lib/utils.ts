@@ -26,3 +26,18 @@ export function formatMonthYear(iso: string): string {
 export function formatStartYear(yearsRunning: number): number {
   return new Date().getFullYear() - Math.floor(yearsRunning || 0);
 }
+
+// ISO date string → "May 27".
+export function formatShortDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+}
+
+// Week's Monday ISO + span → "May 27 – Jun 2" (inclusive, spanDays days long).
+export function formatDateRange(iso: string, spanDays = 7): string {
+  const start = new Date(iso);
+  if (Number.isNaN(start.getTime())) return "";
+  const end = new Date(start.getTime() + (spanDays - 1) * 86_400_000);
+  return `${MONTHS[start.getMonth()]} ${start.getDate()} – ${MONTHS[end.getMonth()]} ${end.getDate()}`;
+}
