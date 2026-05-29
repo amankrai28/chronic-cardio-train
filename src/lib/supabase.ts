@@ -18,12 +18,15 @@ export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
   },
 });
 
+export type AuthMethod = "oauth" | "byok" | "csv";
+
 export type User = {
   id: string;
-  strava_athlete_id: number;
-  strava_access_token: string;
-  strava_refresh_token: string;
-  strava_token_expires_at: string;
+  auth_method: AuthMethod;
+  strava_athlete_id: number | null;
+  strava_access_token: string | null;
+  strava_refresh_token: string | null;
+  strava_token_expires_at: string | null;
   firstname: string | null;
   lastname: string | null;
   city: string | null;

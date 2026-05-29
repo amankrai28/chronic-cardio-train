@@ -27,6 +27,12 @@ export async function POST() {
     return NextResponse.json({ error: "user_not_found" }, { status: 404 });
   }
 
+  // Only the env-var direct OAuth flow can refresh. BYOK users don't have
+  // their secret stored; CSV users have no token at all.
+  if (user.auth_method !== "oauth" || !user.strava_refresh_token || !user.strava_token_expires_at) {
+    return NextResponse.json({ refreshed: false, reason: "no_refresh_available" });
+  }
+
   const expiresAtMs = new Date(user.strava_token_expires_at).getTime();
   if (expiresAtMs - Date.now() > REFRESH_SKEW_MS) {
     return NextResponse.json({ refreshed: false });

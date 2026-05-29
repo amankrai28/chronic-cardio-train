@@ -32,6 +32,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "user_not_found" }, { status: 404 });
   }
 
+  // BYOK/CSV users can't sync from Strava on demand: BYOK because we don't
+  // hold the secret to refresh, CSV because they never had a token. Their
+  // activities + metrics were captured at onboarding; the dashboard reads
+  // those directly and shows a "reconnect to refresh" banner.
+  if (user.auth_method !== "oauth") {
+    return NextResponse.json({
+      activities_synced: 0,
+      metrics_computed: false,
+      skipped: true,
+      reason: user.auth_method === "csv" ? "csv_no_token" : "byok_no_refresh",
+    });
+  }
+
   const force = request.nextUrl.searchParams.get("force") === "true";
 
   if (!force) {
