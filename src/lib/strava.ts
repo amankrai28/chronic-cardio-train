@@ -27,7 +27,9 @@ export type StravaTokenResponse = {
   athlete?: StravaAthlete;
 };
 
-function requireClientCredentials() {
+export type StravaClientCredentials = { clientId: string; clientSecret: string };
+
+function envClientCredentials(): StravaClientCredentials {
   const clientId = process.env.STRAVA_CLIENT_ID;
   const clientSecret = process.env.STRAVA_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
@@ -38,6 +40,29 @@ function requireClientCredentials() {
   return { clientId, clientSecret };
 }
 
+function resolveCredentials(
+  override?: StravaClientCredentials,
+): StravaClientCredentials {
+  return override ?? envClientCredentials();
+}
+
+/** Path A users own their Strava app; we don't store the secret, so refresh
+ * is impossible. Callers must check user.auth_method before attempting. */
+export class StravaByokExpiredError extends Error {
+  constructor() {
+    super("Strava token expired for BYOK user; reconnect to refresh.");
+    this.name = "StravaByokExpiredError";
+  }
+}
+
+/** CSV-upload users never have a Strava token. */
+export class StravaNoTokenError extends Error {
+  constructor() {
+    super("User has no Strava token (CSV upload).");
+    this.name = "StravaNoTokenError";
+  }
+}
+
 function redirectUri() {
   const uri = process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI;
   if (!uri) {
@@ -46,8 +71,11 @@ function redirectUri() {
   return uri;
 }
 
-export function buildAuthorizeUrl(state: string): string {
-  const { clientId } = requireClientCredentials();
+export function buildAuthorizeUrl(
+  state: string,
+  creds?: StravaClientCredentials,
+): string {
+  const { clientId } = resolveCredentials(creds);
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri(),
@@ -61,8 +89,9 @@ export function buildAuthorizeUrl(state: string): string {
 
 export async function exchangeCodeForToken(
   code: string,
+  creds?: StravaClientCredentials,
 ): Promise<StravaTokenResponse> {
-  const { clientId, clientSecret } = requireClientCredentials();
+  const { clientId, clientSecret } = resolveCredentials(creds);
   const res = await fetch(STRAVA_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -84,8 +113,9 @@ export async function exchangeCodeForToken(
 
 export async function refreshAccessToken(
   refreshToken: string,
+  creds?: StravaClientCredentials,
 ): Promise<StravaTokenResponse> {
-  const { clientId, clientSecret } = requireClientCredentials();
+  const { clientId, clientSecret } = resolveCredentials(creds);
   const res = await fetch(STRAVA_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -106,16 +136,31 @@ export async function refreshAccessToken(
 }
 
 /**
- * Return a usable access token for the given user, refreshing first if the
- * stored token is expired (or within the skew window) and persisting the new
- * tokens to Supabase. Call this before any Strava API request.
+ * Return a usable access token for the given user. Behavior depends on
+ * auth_method:
+ *  - 'oauth': refresh with env-var creds if needed, persist new tokens.
+ *  - 'byok':  return the stored token if still valid; throw StravaByokExpiredError
+ *             if expired. We do NOT have the user's client_secret, so refresh
+ *             is impossible by design (one-shot snapshot model).
+ *  - 'csv':   never has a token; throws StravaNoTokenError.
  */
 export async function getFreshAccessToken(user: User): Promise<string> {
+  if (user.auth_method === "csv" || !user.strava_access_token || !user.strava_token_expires_at) {
+    throw new StravaNoTokenError();
+  }
+
   const expiresAtMs = new Date(user.strava_token_expires_at).getTime();
-  if (expiresAtMs - Date.now() > REFRESH_SKEW_MS) {
+  const tokenStillValid = expiresAtMs - Date.now() > REFRESH_SKEW_MS;
+
+  if (user.auth_method === "byok") {
+    if (!tokenStillValid) throw new StravaByokExpiredError();
     return user.strava_access_token;
   }
 
+  // auth_method === 'oauth'
+  if (tokenStillValid) return user.strava_access_token;
+
+  if (!user.strava_refresh_token) throw new StravaNoTokenError();
   const token = await refreshAccessToken(user.strava_refresh_token);
   const expiresAt = new Date(token.expires_at * 1000).toISOString();
 

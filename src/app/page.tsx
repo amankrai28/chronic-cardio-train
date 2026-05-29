@@ -1,5 +1,7 @@
+import OnboardingClient from "@/components/OnboardingClient";
+
 const AUTH_MESSAGES: Record<string, string> = {
-  denied: "Strava connection was cancelled. Connect to continue.",
+  denied: "Strava connection was cancelled. Try again or use the upload path.",
   invalid_state: "Your session expired before connecting. Please try again.",
   missing_code: "Strava didn't return an authorization code. Please try again.",
   no_athlete: "We couldn't read your Strava profile. Please try again.",
@@ -32,13 +34,14 @@ export default async function Home({
 }) {
   const { auth } = await searchParams;
   const authMessage = auth ? AUTH_MESSAGES[auth] : undefined;
+  const directOAuthEnabled = process.env.STRAVA_DIRECT_OAUTH_ENABLED === "true";
 
   return (
     <div>
       {/* Hero */}
       <section
         style={{
-          padding: "var(--space-20) 30px var(--space-12)",
+          padding: "var(--space-20) 30px var(--space-8)",
           maxWidth: 980,
           margin: "0 auto",
         }}
@@ -96,23 +99,21 @@ export default async function Home({
             lineHeight: 1.7,
             color: "var(--mid-gray)",
             maxWidth: 600,
-            marginBottom: "var(--space-8)",
           }}
         >
           We read your training history, detect your patterns, and generate a
           personalized daily training plan using evidence-based coaching
           principles. No paywalls. No guessing.
         </p>
-
-        <a href="/api/auth/strava" className="btn-orange">
-          Connect Strava
-        </a>
       </section>
+
+      {/* Onboarding choice + flow */}
+      <OnboardingClient directOAuthEnabled={directOAuthEnabled} />
 
       {/* Proof points */}
       <section
         style={{
-          padding: "var(--space-12) 30px",
+          padding: "var(--space-8) 30px var(--space-12)",
           maxWidth: 980,
           margin: "0 auto",
           display: "grid",

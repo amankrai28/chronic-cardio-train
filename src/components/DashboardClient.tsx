@@ -20,12 +20,14 @@ type ProfileUser = {
   city: string | null;
   country: string | null;
   profile_photo_url: string | null;
+  auth_method?: "oauth" | "byok" | "csv";
 };
 
 type Profile = {
   user: ProfileUser;
   metrics: AthleteMetricsRow | null;
   unit_system?: UnitSystem;
+  snapshot_at?: string | null;
 };
 
 type Phase = "loading" | "ready" | "insufficient" | "error";
@@ -43,23 +45,45 @@ export default function DashboardClient({ firstName }: { firstName: string }) {
   async function run() {
     setPhase("loading");
     try {
+      // Peek at the profile first so we know whether to trigger a sync.
+      // For BYOK/CSV users, the snapshot was captured at onboarding and
+      // /api/strava/sync would just return { skipped: true } — calling
+      // it would also be misleading ("Pulling your runs…" with nothing
+      // to pull). We skip it entirely for those auth methods.
       const pull = Date.now();
-      setLoadingText("Pulling your runs…");
-      const syncRes = await fetch("/api/strava/sync", { method: "POST" });
-      if (!syncRes.ok) throw new Error("sync_failed");
-      const sync = await syncRes.json();
+      setLoadingText("Reading your training…");
+      const peekRes = await fetch("/api/athlete/profile");
+      if (!peekRes.ok) throw new Error("profile_failed");
+      const peek = (await peekRes.json()) as Profile;
+      const method = peek.user.auth_method ?? "oauth";
+
+      let activitiesCount = peek.metrics?.total_runs ?? 0;
+      if (method === "oauth") {
+        setLoadingText("Pulling your runs…");
+        const syncRes = await fetch("/api/strava/sync", { method: "POST" });
+        if (!syncRes.ok) throw new Error("sync_failed");
+        const sync = await syncRes.json();
+        if (typeof sync.activities_synced === "number" && sync.activities_synced > 0) {
+          activitiesCount = sync.activities_synced;
+        }
+      }
       await minDelay(pull, 700);
 
       const crunch = Date.now();
-      const n = typeof sync.activities_synced === "number" ? sync.activities_synced : 0;
-      setLoadingText(n > 0 ? `Crunching ${n} activities…` : "Crunching your activities…");
+      setLoadingText(
+        activitiesCount > 0
+          ? `Crunching ${activitiesCount} activities…`
+          : "Crunching your activities…",
+      );
       await minDelay(crunch, 700);
 
       const almost = Date.now();
       setLoadingText("Almost there…");
-      const profRes = await fetch("/api/athlete/profile");
-      if (!profRes.ok) throw new Error("profile_failed");
-      const data = (await profRes.json()) as Profile;
+      // Re-fetch profile post-sync so oauth users see fresh metrics; for
+      // BYOK/CSV reuse the peek we already did.
+      const data: Profile = method === "oauth"
+        ? (await (await fetch("/api/athlete/profile")).json()) as Profile
+        : peek;
       await minDelay(almost, 500);
 
       if (!data.metrics || data.metrics.total_runs < 50) {
@@ -144,6 +168,8 @@ export default function DashboardClient({ firstName }: { firstName: string }) {
   // phase === "ready"
   const { user, metrics } = profile as { user: ProfileUser; metrics: AthleteMetricsRow };
   const system: UnitSystem = profile?.unit_system ?? "metric";
+  const authMethod = user.auth_method ?? "oauth";
+  const snapshotAt = profile?.snapshot_at ?? null;
   const fullName = [user.firstname, user.lastname].filter(Boolean).join(" ").toUpperCase() || "ATHLETE";
   const location = [user.city, user.country].filter(Boolean).join(", ");
   const hr = metrics.hr_zone_distribution;
@@ -163,6 +189,10 @@ export default function DashboardClient({ firstName }: { firstName: string }) {
         gap: "var(--space-6)",
       }}
     >
+      {authMethod !== "oauth" ? (
+        <SnapshotBanner method={authMethod} snapshotAt={snapshotAt} />
+      ) : null}
+
       {/* Card 1: Identity */}
       <ProfileCard caption="YOUR RUNNING PROFILE" captionColor="var(--accent)">
         <div style={{ display: "flex", gap: "var(--space-6)", alignItems: "center", flexWrap: "wrap" }}>
@@ -364,6 +394,52 @@ function StatLine({ label, value }: { label: string; value: string }) {
       <span style={{ color: "var(--mid-gray)" }}>{label}: </span>
       <strong>{value}</strong>
     </p>
+  );
+}
+
+function SnapshotBanner({
+  method,
+  snapshotAt,
+}: {
+  method: "byok" | "csv";
+  snapshotAt: string | null;
+}) {
+  const dateLabel = snapshotAt
+    ? new Date(snapshotAt).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
+  const body =
+    method === "csv"
+      ? "Connected via file upload. HR zone analysis is unavailable in Strava's CSV export — reconnect via API key for full analysis."
+      : `Snapshot${dateLabel ? ` from ${dateLabel}` : ""}. Tokens from your Strava app expire after a few hours and we don't store your secret. To refresh data, reconnect via API key.`;
+  return (
+    <div
+      role="note"
+      style={{
+        border: "3px solid var(--ink)",
+        padding: "var(--space-5) var(--space-6)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "var(--space-3)",
+      }}
+    >
+      <span className="caption" style={{ color: "var(--accent)" }}>
+        {method === "csv" ? "FILE UPLOAD" : "ONE-SHOT SNAPSHOT"}
+      </span>
+      <p style={{ fontFamily: "var(--font-sans), sans-serif", fontSize: 15, lineHeight: 1.6, margin: 0 }}>
+        {body}
+      </p>
+      <Link
+        href="/"
+        className="caption"
+        style={{ color: "var(--accent)", minHeight: 44, display: "inline-flex", alignItems: "center" }}
+      >
+        RECONNECT TO REFRESH DATA →
+      </Link>
+    </div>
   );
 }
 

@@ -17,7 +17,7 @@ export async function GET() {
   const { data: user, error: userError } = await supabaseAdmin
     .from("users")
     .select(
-      "id, strava_athlete_id, firstname, lastname, city, country, profile_photo_url, measurement_preference, created_at",
+      "id, auth_method, strava_athlete_id, firstname, lastname, city, country, profile_photo_url, measurement_preference, created_at",
     )
     .eq("id", userId)
     .single<Omit<User, "strava_access_token" | "strava_refresh_token" | "strava_token_expires_at" | "updated_at">>();
@@ -37,5 +37,24 @@ export async function GET() {
   const { measurement_preference, ...publicUser } = user;
   const unit_system = getUnitSystem(measurement_preference);
 
-  return NextResponse.json({ user: publicUser, metrics: metrics ?? null, unit_system });
+  // For non-oauth users, surface the snapshot timestamp so the dashboard
+  // can show "Snapshot from {date}".
+  let snapshot_at: string | null = null;
+  if (user.auth_method !== "oauth") {
+    const { data: latest } = await supabaseAdmin
+      .from("activities")
+      .select("fetched_at")
+      .eq("user_id", userId)
+      .order("fetched_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{ fetched_at: string }>();
+    snapshot_at = latest?.fetched_at ?? null;
+  }
+
+  return NextResponse.json({
+    user: publicUser,
+    metrics: metrics ?? null,
+    unit_system,
+    snapshot_at,
+  });
 }

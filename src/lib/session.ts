@@ -1,11 +1,20 @@
 import "server-only";
-import { createHmac, randomBytes, timingSafeEqual } from "crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHmac,
+  hkdfSync,
+  randomBytes,
+  timingSafeEqual,
+} from "crypto";
 import { cookies } from "next/headers";
 
 const SESSION_COOKIE = "cc_session";
 const STATE_COOKIE = "cc_oauth_state";
+const PENDING_CREDS_COOKIE = "cc_pending_creds";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 const STATE_MAX_AGE = 60 * 10; // 10 minutes
+const PENDING_CREDS_MAX_AGE = 60 * 15; // 15 minutes
 
 function secret(): string {
   const value = process.env.SESSION_SECRET;
@@ -81,4 +90,80 @@ export async function consumeOAuthState(returned: string | null): Promise<boolea
   store.delete(STATE_COOKIE);
   if (!stored || !returned) return false;
   return safeEqual(stored, returned);
+}
+
+// --- Encrypted Path A credential cookie ----------------------------------
+//
+// Carries the user's pasted Strava client_id/client_secret between the
+// /api/auth/strava/path-a submit step and the OAuth callback. AES-256-GCM
+// with a key derived from SESSION_SECRET via HKDF. Cookie is httpOnly,
+// 15-minute TTL, single-use. We never persist these credentials to the
+// database — see plan: one-shot snapshot model.
+
+export type PendingStravaCreds = { clientId: string; clientSecret: string };
+
+function encryptionKey(): Buffer {
+  return Buffer.from(
+    hkdfSync("sha256", secret(), Buffer.alloc(0), "cc-pending-creds", 32),
+  );
+}
+
+function encryptCreds(creds: PendingStravaCreds): string {
+  const iv = randomBytes(12);
+  const key = encryptionKey();
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const plaintext = Buffer.from(JSON.stringify(creds), "utf8");
+  const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return [
+    iv.toString("base64url"),
+    ciphertext.toString("base64url"),
+    tag.toString("base64url"),
+  ].join(".");
+}
+
+function decryptCreds(value: string): PendingStravaCreds | null {
+  const parts = value.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const iv = Buffer.from(parts[0], "base64url");
+    const ciphertext = Buffer.from(parts[1], "base64url");
+    const tag = Buffer.from(parts[2], "base64url");
+    if (iv.length !== 12 || tag.length !== 16) return null;
+    const key = encryptionKey();
+    const decipher = createDecipheriv("aes-256-gcm", key, iv);
+    decipher.setAuthTag(tag);
+    const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+    const parsed = JSON.parse(plaintext.toString("utf8"));
+    if (
+      typeof parsed?.clientId !== "string" ||
+      typeof parsed?.clientSecret !== "string"
+    ) {
+      return null;
+    }
+    return { clientId: parsed.clientId, clientSecret: parsed.clientSecret };
+  } catch {
+    return null;
+  }
+}
+
+/** Stash the user's pasted Path A credentials for the OAuth round-trip. */
+export async function setPendingStravaCreds(creds: PendingStravaCreds): Promise<void> {
+  const store = await cookies();
+  store.set(PENDING_CREDS_COOKIE, encryptCreds(creds), {
+    httpOnly: true,
+    secure: secureCookie,
+    sameSite: "lax",
+    path: "/",
+    maxAge: PENDING_CREDS_MAX_AGE,
+  });
+}
+
+/** Read + delete the pending credentials cookie. Returns null if absent or tampered. */
+export async function consumePendingStravaCreds(): Promise<PendingStravaCreds | null> {
+  const store = await cookies();
+  const raw = store.get(PENDING_CREDS_COOKIE)?.value;
+  store.delete(PENDING_CREDS_COOKIE);
+  if (!raw) return null;
+  return decryptCreds(raw);
 }
