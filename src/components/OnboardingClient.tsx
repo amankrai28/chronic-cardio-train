@@ -11,8 +11,7 @@ import LoadingBar from "@/components/LoadingBar";
 
 type Step =
   | "choosing"
-  | "pathA_setup"
-  | "pathA_creds"
+  | "pathA"
   | "pathA_connecting"
   | "pathB_instructions"
   | "pathB_upload"
@@ -64,7 +63,7 @@ export default function OnboardingClient({
           directOAuthEnabled={directOAuthEnabled}
           onPickA={() => {
             setError(null);
-            setStep("pathA_setup");
+            setStep("pathA");
           }}
           onPickB={() => {
             setError(null);
@@ -73,16 +72,9 @@ export default function OnboardingClient({
         />
       ) : null}
 
-      {step === "pathA_setup" ? (
-        <PathASetup
+      {step === "pathA" ? (
+        <PathA
           onBack={() => setStep("choosing")}
-          onContinue={() => setStep("pathA_creds")}
-        />
-      ) : null}
-
-      {step === "pathA_creds" ? (
-        <PathACreds
-          onBack={() => setStep("pathA_setup")}
           onError={(msg) => setError(msg)}
           onConnecting={() => {
             setError(null);
@@ -261,88 +253,9 @@ function PathCard({
   );
 }
 
-// --- Path A: setup --------------------------------------------------------
+// --- Path A: create app + paste credentials (single screen) ---------------
 
-function PathASetup({
-  onBack,
-  onContinue,
-}: {
-  onBack: () => void;
-  onContinue: () => void;
-}) {
-  const [createdChecked, setCreatedChecked] = useState(false);
-  const [credsChecked, setCredsChecked] = useState(false);
-
-  const openStrava = useCallback(() => {
-    window.open(STRAVA_SETTINGS_API, "strava_app", "width=800,height=700");
-  }, []);
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
-      <BackLink onClick={onBack} />
-
-      <div>
-        <span className="caption" style={{ color: "var(--accent)" }}>
-          STEP 1 OF 2 — CREATE YOUR STRAVA APP
-        </span>
-        <h2 style={{ fontSize: "clamp(28px, 5vw, 40px)", margin: "var(--space-4) 0" }}>
-          Paste these into Strava&apos;s API page.
-        </h2>
-        <p
-          style={{
-            fontFamily: "var(--font-sans), sans-serif",
-            fontSize: 16,
-            lineHeight: 1.7,
-            color: "var(--mid-gray)",
-            maxWidth: 640,
-          }}
-        >
-          Strava&apos;s &quot;Single Player Mode&quot; lets every account create one
-          API app for themselves. Use these values — copy them with the
-          buttons.
-        </p>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-        <CopyRow label="App name" value={STRAVA_APP_NAME} />
-        <CopyRow label="Website" value={STRAVA_APP_WEBSITE} />
-        <CopyRow label="Authorization Callback Domain" value={STRAVA_APP_DOMAIN} />
-        <CopyRow label="Category" value={STRAVA_APP_CATEGORY} />
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-        <button type="button" className="btn-orange" onClick={openStrava} style={{ alignSelf: "flex-start" }}>
-          Open Strava Settings ↗
-        </button>
-
-        <StatusBar text="Strava is open in a popup. Create your app there, then come back here." />
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-        <Checkbox
-          label="I created the app on Strava"
-          checked={createdChecked}
-          onChange={setCreatedChecked}
-        />
-        <Checkbox
-          label="I can see my Client ID and Client Secret"
-          checked={credsChecked}
-          onChange={setCredsChecked}
-        />
-      </div>
-
-      {createdChecked && credsChecked ? (
-        <button type="button" className="btn-orange" onClick={onContinue} style={{ alignSelf: "flex-start" }}>
-          Done — Paste My Credentials →
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
-// --- Path A: credentials --------------------------------------------------
-
-function PathACreds({
+function PathA({
   onBack,
   onError,
   onConnecting,
@@ -354,6 +267,10 @@ function PathACreds({
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const openStrava = useCallback(() => {
+    window.open(STRAVA_SETTINGS_API, "_blank");
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -386,17 +303,41 @@ function PathACreds({
   }
 
   return (
-    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
+    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
       <BackLink onClick={onBack} />
 
       <div>
         <span className="caption" style={{ color: "var(--accent)" }}>
-          STEP 2 OF 2 — PASTE YOUR CREDENTIALS
+          CONNECT VIA API KEY
         </span>
         <h2 style={{ fontSize: "clamp(28px, 5vw, 40px)", margin: "var(--space-4) 0" }}>
-          Two values, then you&apos;re in.
+          Make a Strava app, paste two values.
         </h2>
+        <p
+          style={{
+            fontFamily: "var(--font-sans), sans-serif",
+            fontSize: 16,
+            lineHeight: 1.7,
+            color: "var(--mid-gray)",
+            maxWidth: 640,
+          }}
+        >
+          Strava&apos;s &quot;Single Player Mode&quot; lets every account create one
+          API app for themselves. Copy these values, open Strava in a new tab,
+          create the app, then paste your Client ID and Secret below.
+        </p>
       </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+        <CopyRow label="App name" value={STRAVA_APP_NAME} />
+        <CopyRow label="Category" value={STRAVA_APP_CATEGORY} />
+        <CopyRow label="Website" value={STRAVA_APP_WEBSITE} />
+        <CopyRow label="Authorization Callback Domain" value={STRAVA_APP_DOMAIN} />
+      </div>
+
+      <button type="button" className="btn-primary" onClick={openStrava} style={{ alignSelf: "flex-start" }}>
+        Open Strava Settings ↗
+      </button>
 
       <FieldInput
         label="Client ID"
@@ -740,38 +681,6 @@ function copyButtonStyle(copied: boolean): CSSProperties {
     border: `3px solid ${copied ? "var(--confirm-green)" : "var(--ink)"}`,
     cursor: "pointer",
   };
-}
-
-function Checkbox({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "var(--space-3)",
-        minHeight: 44,
-        cursor: "pointer",
-        fontFamily: "var(--font-sans), sans-serif",
-        fontSize: 16,
-      }}
-    >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        style={{ width: 22, height: 22, accentColor: "var(--accent)" }}
-      />
-      {label}
-    </label>
-  );
 }
 
 function FieldInput({
