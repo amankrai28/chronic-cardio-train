@@ -6,6 +6,7 @@ import {
   useState,
   type CSSProperties,
   type DragEvent,
+  type ReactNode,
 } from "react";
 import LoadingBar from "@/components/LoadingBar";
 
@@ -18,6 +19,21 @@ const STRAVA_APP_CATEGORY = "Training";
 
 const STRAVA_SETTINGS_API = "https://www.strava.com/settings/api";
 const STRAVA_ACCOUNT = "https://www.strava.com/account";
+
+const REPO_URL = "https://github.com/amankrai28/chronic-cardio-train";
+
+function OpenSourceLink({ children }: { children: ReactNode }) {
+  return (
+    <a
+      href={REPO_URL}
+      target="_blank"
+      rel="noreferrer"
+      style={{ color: "var(--accent)", textDecoration: "underline" }}
+    >
+      {children}
+    </a>
+  );
+}
 
 const PROOF_POINTS = [
   {
@@ -246,6 +262,40 @@ function Landing({
         ))}
       </section>
 
+      {/* Brand DNA */}
+      <section
+        style={{
+          padding: "0 30px var(--space-12)",
+          maxWidth: 980,
+          margin: "0 auto",
+        }}
+      >
+        <div
+          style={{
+            background: "var(--ink)",
+            color: "var(--newsprint)",
+            padding: "var(--space-8)",
+          }}
+        >
+          <p
+            style={{
+              fontFamily: "var(--font-display), monospace",
+              fontWeight: 700,
+              fontSize: "clamp(20px, 3vw, 26px)",
+              lineHeight: 1.4,
+            }}
+          >
+            We published every gel recipe. Now we&apos;re publishing the training
+            methodology. Chronic Card
+            <span style={{ color: "var(--accent)" }}>i</span>o is open-source
+            endurance —{" "}
+            <span style={{ color: "var(--accent)" }}>
+              no gatekeeping, no paywalls, no black boxes.
+            </span>
+          </p>
+        </div>
+      </section>
+
       {/* Methodology callout */}
       <section
         style={{
@@ -456,6 +506,17 @@ function ConnectScreen({
         />
       </div>
 
+      <TrustStrip
+        items={[
+          "✓ Your credentials are used once, then discarded",
+          "✓ Your training data stays in your account — we don't sell or share it",
+          <>
+            ✓ This entire tool is <OpenSourceLink>open source</OpenSourceLink> —
+            read every line of code
+          </>,
+        ]}
+      />
+
       <button
         type="submit"
         className="btn-orange"
@@ -664,6 +725,19 @@ function UploadScreen({
         />
       </div>
 
+      <TrustStrip
+        inline
+        items={[
+          "✓ Your file is processed securely",
+          "·",
+          "✓ We don't store raw files",
+          "·",
+          <>
+            ✓ <OpenSourceLink>Open source</OpenSourceLink> — verify yourself
+          </>,
+        ]}
+      />
+
       <button
         type="submit"
         className="btn-orange"
@@ -730,6 +804,35 @@ function StepDivider({ label }: { label: string }) {
           margin: 0,
         }}
       />
+    </div>
+  );
+}
+
+function TrustStrip({
+  items,
+  inline = false,
+}: {
+  items: ReactNode[];
+  inline?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: inline ? "row" : "column",
+        flexWrap: "wrap",
+        gap: inline ? "var(--space-2) var(--space-4)" : "var(--space-2)",
+        fontFamily: "var(--font-mono), monospace",
+        fontSize: 12,
+        letterSpacing: 1,
+        fontVariant: "small-caps",
+        color: "var(--mid-gray)",
+        lineHeight: 1.6,
+      }}
+    >
+      {items.map((item, i) => (
+        <span key={i}>{item}</span>
+      ))}
     </div>
   );
 }
