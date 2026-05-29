@@ -9,13 +9,7 @@ import {
 } from "react";
 import LoadingBar from "@/components/LoadingBar";
 
-type Step =
-  | "choosing"
-  | "pathA"
-  | "pathA_connecting"
-  | "pathB_instructions"
-  | "pathB_upload"
-  | "pathB_processing";
+type Step = "landing" | "connect" | "connecting" | "upload" | "uploading";
 
 const STRAVA_APP_NAME = "My Training Plan";
 const STRAVA_APP_WEBSITE = "https://train.chroniccardio.com";
@@ -25,244 +19,292 @@ const STRAVA_APP_CATEGORY = "Training";
 const STRAVA_SETTINGS_API = "https://www.strava.com/settings/api";
 const STRAVA_ACCOUNT = "https://www.strava.com/account";
 
+const PROOF_POINTS = [
+  {
+    label: "01",
+    title: "We read your last 2+ years",
+    body: "Every run, every gap, every peak. We analyze your full Strava history to understand how you actually train.",
+  },
+  {
+    label: "02",
+    title: "Plans are daily, not weekly",
+    body: "Not a generic template. A day-by-day plan with distances, zones, workouts, strength, and nutrition cues.",
+  },
+  {
+    label: "03",
+    title: "Open-source methodology",
+    body: "No black box. The coaching rules behind every plan are published. Read exactly how it works.",
+  },
+];
+
 export default function OnboardingClient({
-  directOAuthEnabled,
+  authMessage,
 }: {
-  directOAuthEnabled: boolean;
+  authMessage?: string;
 }) {
-  const [step, setStep] = useState<Step>("choosing");
+  const [step, setStep] = useState<Step>("landing");
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <section
-      style={{
-        maxWidth: 980,
-        margin: "0 auto",
-        padding: "var(--space-12) 30px var(--space-20)",
-      }}
-    >
-      {error ? (
-        <p
-          role="alert"
+    <>
+      {step === "landing" ? (
+        <Landing
+          authMessage={authMessage}
+          onConnect={() => {
+            setError(null);
+            setStep("connect");
+          }}
+        />
+      ) : null}
+
+      {step !== "landing" ? (
+        <section
           style={{
-            border: "3px solid var(--alert-red)",
-            color: "var(--alert-red)",
-            padding: "var(--space-3) var(--space-4)",
-            marginBottom: "var(--space-8)",
-            fontFamily: "var(--font-mono), monospace",
-            fontSize: 13,
-            letterSpacing: 1,
+            maxWidth: 980,
+            margin: "0 auto",
+            padding: "var(--space-12) 30px var(--space-20)",
           }}
         >
-          {error}
-        </p>
+          {error ? (
+            <p
+              role="alert"
+              style={{
+                border: "3px solid var(--alert-red)",
+                color: "var(--alert-red)",
+                padding: "var(--space-3) var(--space-4)",
+                marginBottom: "var(--space-8)",
+                fontFamily: "var(--font-mono), monospace",
+                fontSize: 13,
+                letterSpacing: 1,
+              }}
+            >
+              {error}
+            </p>
+          ) : null}
+
+          {step === "connect" ? (
+            <ConnectScreen
+              onBack={() => {
+                setError(null);
+                setStep("landing");
+              }}
+              onError={(msg) => setError(msg)}
+              onConnecting={() => {
+                setError(null);
+                setStep("connecting");
+              }}
+              onUpload={() => {
+                setError(null);
+                setStep("upload");
+              }}
+            />
+          ) : null}
+
+          {step === "connecting" ? <Connecting /> : null}
+
+          {step === "upload" ? (
+            <UploadScreen
+              onBack={() => {
+                setError(null);
+                setStep("connect");
+              }}
+              onError={(msg) => setError(msg)}
+              onUploading={() => {
+                setError(null);
+                setStep("uploading");
+              }}
+            />
+          ) : null}
+
+          {step === "uploading" ? <Uploading /> : null}
+        </section>
       ) : null}
-
-      {step === "choosing" ? (
-        <ChoosingView
-          directOAuthEnabled={directOAuthEnabled}
-          onPickA={() => {
-            setError(null);
-            setStep("pathA");
-          }}
-          onPickB={() => {
-            setError(null);
-            setStep("pathB_instructions");
-          }}
-        />
-      ) : null}
-
-      {step === "pathA" ? (
-        <PathA
-          onBack={() => setStep("choosing")}
-          onError={(msg) => setError(msg)}
-          onConnecting={() => {
-            setError(null);
-            setStep("pathA_connecting");
-          }}
-        />
-      ) : null}
-
-      {step === "pathA_connecting" ? <PathAConnecting /> : null}
-
-      {step === "pathB_instructions" ? (
-        <PathBInstructions
-          onBack={() => setStep("choosing")}
-          onContinue={() => setStep("pathB_upload")}
-        />
-      ) : null}
-
-      {step === "pathB_upload" ? (
-        <PathBUpload
-          onBack={() => setStep("pathB_instructions")}
-          onError={(msg) => setError(msg)}
-          onProcessing={() => {
-            setError(null);
-            setStep("pathB_processing");
-          }}
-        />
-      ) : null}
-
-      {step === "pathB_processing" ? <PathBProcessing /> : null}
-    </section>
+    </>
   );
 }
 
-// --- Choosing -------------------------------------------------------------
+// --- Landing --------------------------------------------------------------
 
-function ChoosingView({
-  directOAuthEnabled,
-  onPickA,
-  onPickB,
+function Landing({
+  authMessage,
+  onConnect,
 }: {
-  directOAuthEnabled: boolean;
-  onPickA: () => void;
-  onPickB: () => void;
+  authMessage?: string;
+  onConnect: () => void;
 }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
-      {directOAuthEnabled ? (
+    <div>
+      {/* Hero */}
+      <section
+        style={{
+          padding: "var(--space-20) 30px var(--space-8)",
+          maxWidth: 980,
+          margin: "0 auto",
+        }}
+      >
+        {authMessage ? (
+          <p
+            role="alert"
+            style={{
+              border: "3px solid var(--alert-red)",
+              color: "var(--alert-red)",
+              padding: "var(--space-3) var(--space-4)",
+              marginBottom: "var(--space-8)",
+              fontFamily: "var(--font-mono), monospace",
+              fontSize: 13,
+              letterSpacing: 1,
+            }}
+          >
+            {authMessage}
+          </p>
+        ) : null}
+
+        <p
+          className="caption"
+          style={{
+            background: "var(--ink)",
+            color: "var(--newsprint)",
+            display: "inline-block",
+            padding: "8px 18px",
+            marginBottom: "var(--space-8)",
+            letterSpacing: 5,
+          }}
+        >
+          FREE · OPEN SOURCE · FOR ULTRARUNNERS
+        </p>
+
+        <h1
+          style={{
+            fontSize: "clamp(40px, 8vw, 80px)",
+            lineHeight: 1.0,
+            letterSpacing: "-2px",
+            marginBottom: "var(--space-6)",
+          }}
+        >
+          Your Strava data.
+          <br />
+          A real plan.
+          <br />
+          <span style={{ color: "var(--accent)" }}>Zero guesswork.</span>
+        </h1>
+
+        <p
+          style={{
+            fontFamily: "var(--font-sans), sans-serif",
+            fontSize: 20,
+            lineHeight: 1.7,
+            color: "var(--mid-gray)",
+            maxWidth: 600,
+            marginBottom: "var(--space-8)",
+          }}
+        >
+          We read your training history, detect your patterns, and generate a
+          personalized daily training plan using evidence-based coaching
+          principles. No paywalls. No guessing.
+        </p>
+
+        <button
+          type="button"
+          className="btn-orange"
+          onClick={onConnect}
+          style={{ fontSize: 16 }}
+        >
+          Connect Your Strava →
+        </button>
+      </section>
+
+      {/* Proof points */}
+      <section
+        style={{
+          padding: "var(--space-8) 30px var(--space-12)",
+          maxWidth: 980,
+          margin: "0 auto",
+          display: "grid",
+          gap: "var(--space-6)",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+        }}
+      >
+        {PROOF_POINTS.map((p) => (
+          <div key={p.label} className="card">
+            <span className="caption" style={{ color: "var(--accent)" }}>
+              {p.label}
+            </span>
+            <h2 style={{ fontSize: 20, margin: "var(--space-3) 0 var(--space-4)" }}>
+              {p.title}
+            </h2>
+            <p
+              style={{
+                fontFamily: "var(--font-sans), sans-serif",
+                fontSize: 15,
+                color: "var(--mid-gray)",
+                lineHeight: 1.7,
+              }}
+            >
+              {p.body}
+            </p>
+          </div>
+        ))}
+      </section>
+
+      {/* Methodology callout */}
+      <section
+        style={{
+          padding: "0 30px var(--space-20)",
+          maxWidth: 980,
+          margin: "0 auto",
+        }}
+      >
         <div
           style={{
             background: "var(--ink)",
             color: "var(--newsprint)",
-            padding: "var(--space-6)",
-            display: "flex",
-            flexDirection: "column",
-            gap: "var(--space-4)",
+            padding: "var(--space-8)",
           }}
         >
-          <span className="caption" style={{ color: "var(--accent)" }}>
-            ONE-CLICK CONNECT
-          </span>
-          <h2 style={{ fontSize: 26, color: "var(--newsprint)" }}>
-            Connect Strava directly
-          </h2>
-          <a href="/api/auth/strava" className="btn-orange" style={{ alignSelf: "flex-start" }}>
-            Connect Strava
-          </a>
-        </div>
-      ) : (
-        <div>
           <p
+            style={{
+              fontFamily: "var(--font-mono), monospace",
+              fontSize: 17,
+              lineHeight: 1.7,
+              marginBottom: "var(--space-4)",
+            }}
+          >
+            We published every gel recipe. Now we&apos;re publishing the training
+            methodology.{" "}
+            <span style={{ color: "var(--accent)" }}>
+              Same principle: no gatekeeping.
+            </span>
+          </p>
+          <a
+            href="https://github.com/amankrai28/chronic-cardio-train/tree/main/docs"
             className="caption"
             style={{
-              background: "var(--ink)",
-              color: "var(--newsprint)",
-              display: "inline-block",
-              padding: "8px 18px",
-              marginBottom: "var(--space-4)",
-              letterSpacing: 4,
+              color: "var(--accent)",
+              minHeight: 44,
+              display: "inline-flex",
+              alignItems: "center",
             }}
           >
-            STRAVA IS REVIEWING OUR API APP
-          </p>
-          <p
-            style={{
-              fontFamily: "var(--font-sans), sans-serif",
-              fontSize: 16,
-              lineHeight: 1.7,
-              color: "var(--mid-gray)",
-              maxWidth: 720,
-            }}
-          >
-            Until they approve us, direct OAuth is throttled to a single
-            athlete. Pick one of the two workarounds below — both work today.
-          </p>
+            READ THE METHODOLOGY →
+          </a>
         </div>
-      )}
-
-      <div
-        style={{
-          display: "grid",
-          gap: "var(--space-6)",
-          gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-        }}
-      >
-        <PathCard
-          tag="FASTEST · RECOMMENDED"
-          tagColor="var(--accent)"
-          title="Connect via API Key"
-          body="Make a quick Strava API app in your own account, paste two values, OAuth into yourself. Full HR analysis."
-          duration="~2 minutes"
-          ctaLabel="Use API Key →"
-          ctaClass="btn-orange"
-          onClick={onPickA}
-        />
-        <PathCard
-          tag="NO API KEY NEEDED"
-          tagColor="var(--ink)"
-          title="Upload Strava Export"
-          body="Request your Strava archive, wait for the email, upload the ZIP. No HR/suffer data in CSV exports."
-          duration="~5 minutes + email wait"
-          ctaLabel="Upload Export →"
-          ctaClass="btn-primary"
-          onClick={onPickB}
-        />
-      </div>
+      </section>
     </div>
   );
 }
 
-function PathCard({
-  tag,
-  tagColor,
-  title,
-  body,
-  duration,
-  ctaLabel,
-  ctaClass,
-  onClick,
-}: {
-  tag: string;
-  tagColor: string;
-  title: string;
-  body: string;
-  duration: string;
-  ctaLabel: string;
-  ctaClass: string;
-  onClick: () => void;
-}) {
-  return (
-    <div className="card" style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-      <span className="caption" style={{ color: tagColor }}>
-        {tag}
-      </span>
-      <h2 style={{ fontSize: 24 }}>{title}</h2>
-      <p
-        style={{
-          fontFamily: "var(--font-sans), sans-serif",
-          fontSize: 15,
-          color: "var(--mid-gray)",
-          lineHeight: 1.7,
-          flex: 1,
-        }}
-      >
-        {body}
-      </p>
-      <p
-        className="caption"
-        style={{ color: "var(--mid-gray)", letterSpacing: 2 }}
-      >
-        {duration}
-      </p>
-      <button type="button" className={ctaClass} onClick={onClick} style={{ alignSelf: "flex-start" }}>
-        {ctaLabel}
-      </button>
-    </div>
-  );
-}
+// --- Connect: open Strava, create app, paste key (single screen, 3 steps) -
 
-// --- Path A: create app + paste credentials (single screen) ---------------
-
-function PathA({
+function ConnectScreen({
   onBack,
   onError,
   onConnecting,
+  onUpload,
 }: {
   onBack: () => void;
   onError: (msg: string) => void;
   onConnecting: () => void;
+  onUpload: () => void;
 }) {
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
@@ -290,7 +332,9 @@ function PathA({
       });
       const json = await res.json();
       if (!res.ok || typeof json.redirect !== "string") {
-        onError(errorMessageFor(json.error) ?? "Couldn't validate those credentials.");
+        onError(
+          errorMessageFor(json.error) ?? "Couldn't validate those credentials.",
+        );
         setSubmitting(false);
         return;
       }
@@ -303,15 +347,18 @@ function PathA({
   }
 
   return (
-    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
+    <form
+      onSubmit={submit}
+      style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}
+    >
       <BackLink onClick={onBack} />
 
       <div>
         <span className="caption" style={{ color: "var(--accent)" }}>
-          CONNECT VIA API KEY
+          3 STEPS · 2 MINUTES
         </span>
         <h2 style={{ fontSize: "clamp(28px, 5vw, 40px)", margin: "var(--space-4) 0" }}>
-          Make a Strava app, paste two values.
+          Connect Your Strava
         </h2>
         <p
           style={{
@@ -322,53 +369,92 @@ function PathA({
             maxWidth: 640,
           }}
         >
-          Strava&apos;s &quot;Single Player Mode&quot; lets every account create one
-          API app for themselves. Copy these values, open Strava in a new tab,
-          create the app, then paste your Client ID and Secret below.
+          We need a one-time connection to read your training history. You&apos;ll
+          create a personal connection key on Strava — we walk you through every
+          click.
         </p>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-        <CopyRow label="App name" value={STRAVA_APP_NAME} />
-        <CopyRow label="Category" value={STRAVA_APP_CATEGORY} />
-        <CopyRow label="Website" value={STRAVA_APP_WEBSITE} />
-        <CopyRow label="Authorization Callback Domain" value={STRAVA_APP_DOMAIN} />
-      </div>
-
-      <button type="button" className="btn-primary" onClick={openStrava} style={{ alignSelf: "flex-start" }}>
+      {/* Step 1 */}
+      <StepDivider label="STEP 1 — OPEN STRAVA" />
+      <p style={instructionStyle}>
+        Click below. A new tab opens to your Strava settings. Keep this page open
+        — you&apos;ll come back.
+      </p>
+      <button
+        type="button"
+        className="btn-orange"
+        onClick={openStrava}
+        style={{ alignSelf: "flex-start" }}
+      >
         Open Strava Settings ↗
       </button>
 
-      <FieldInput
-        label="Client ID"
-        value={clientId}
-        onChange={setClientId}
-        placeholder="123456"
-        autoComplete="off"
-        inputMode="numeric"
-      />
-      <FieldInput
-        label="Client Secret"
-        value={clientSecret}
-        onChange={setClientSecret}
-        placeholder="40-character hex string"
-        autoComplete="off"
-        type="password"
-      />
-
-      <p
+      {/* Step 2 */}
+      <StepDivider label="STEP 2 — CREATE CONNECTION" />
+      <p style={instructionStyle}>
+        On the Strava page, you&apos;ll see a form. Copy and paste these values
+        into it, then click Create.
+      </p>
+      <div
         style={{
-          fontFamily: "var(--font-mono), monospace",
-          fontSize: 13,
-          color: "var(--mid-gray)",
-          lineHeight: 1.7,
-          letterSpacing: 0.5,
+          background: "var(--ink)",
+          padding: "var(--space-6)",
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--space-4)",
         }}
       >
-        Used once to authenticate. We don&apos;t store your secret. Strava&apos;s
-        access tokens are valid for ~6 hours — we&apos;ll capture your data
-        snapshot during that window.
+        <span
+          className="caption"
+          style={{ color: "var(--accent)", letterSpacing: 4 }}
+        >
+          ↓ PASTE THESE INTO STRAVA
+        </span>
+        <CopyRow dark label="Application Name" value={STRAVA_APP_NAME} />
+        <CopyRow dark label="Category" value={STRAVA_APP_CATEGORY} />
+        <CopyRow dark label="Website" value={STRAVA_APP_WEBSITE} />
+        <CopyRow dark label="Callback Domain" value={STRAVA_APP_DOMAIN} />
+      </div>
+
+      {/* Step 3 */}
+      <StepDivider label="STEP 3 — PASTE YOUR KEY" />
+      <p style={instructionStyle}>
+        After clicking Create on Strava, you&apos;ll see two values. Copy them
+        back here.
       </p>
+      <div
+        style={{
+          border: "3px solid var(--accent)",
+          padding: "var(--space-6)",
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--space-5)",
+        }}
+      >
+        <span
+          className="caption"
+          style={{ color: "var(--accent)", letterSpacing: 4 }}
+        >
+          ↑ PASTE THESE FROM STRAVA
+        </span>
+        <FieldInput
+          label="Client ID"
+          value={clientId}
+          onChange={setClientId}
+          placeholder="The number shown on Strava"
+          autoComplete="off"
+          inputMode="numeric"
+        />
+        <FieldInput
+          label="Client Secret"
+          value={clientSecret}
+          onChange={setClientSecret}
+          placeholder="The long code shown on Strava"
+          autoComplete="off"
+          type="password"
+        />
+      </div>
 
       <button
         type="submit"
@@ -378,11 +464,30 @@ function PathA({
       >
         {submitting ? "Connecting…" : "Connect My Strava →"}
       </button>
+
+      <button
+        type="button"
+        onClick={onUpload}
+        style={{
+          alignSelf: "flex-start",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          fontFamily: "var(--font-sans), sans-serif",
+          fontSize: 14,
+          color: "var(--mid-gray)",
+          textDecoration: "underline",
+          minHeight: 44,
+          padding: "8px 0",
+        }}
+      >
+        Don&apos;t want to do this? Upload a file instead →
+      </button>
     </form>
   );
 }
 
-function PathAConnecting() {
+function Connecting() {
   return (
     <CenteredLoad
       captionText="CONNECTING TO STRAVA"
@@ -392,89 +497,25 @@ function PathAConnecting() {
   );
 }
 
-// --- Path B: instructions -------------------------------------------------
+// --- Upload: alternative method (single screen, 2 steps) ------------------
 
-function PathBInstructions({
-  onBack,
-  onContinue,
-}: {
-  onBack: () => void;
-  onContinue: () => void;
-}) {
-  const openStrava = useCallback(() => {
-    window.open(STRAVA_ACCOUNT, "strava_account", "width=800,height=700");
-  }, []);
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
-      <BackLink onClick={onBack} />
-
-      <div>
-        <span className="caption">STEP 1 OF 2 — REQUEST YOUR ARCHIVE</span>
-        <h2 style={{ fontSize: "clamp(28px, 5vw, 40px)", margin: "var(--space-4) 0" }}>
-          Ask Strava for your data.
-        </h2>
-        <p
-          style={{
-            fontFamily: "var(--font-sans), sans-serif",
-            fontSize: 16,
-            lineHeight: 1.7,
-            color: "var(--mid-gray)",
-            maxWidth: 640,
-          }}
-        >
-          Strava emails the ZIP within 5–10 minutes. Once it arrives, come
-          back and upload it.
-        </p>
-      </div>
-
-      <ol
-        style={{
-          fontFamily: "var(--font-sans), sans-serif",
-          fontSize: 16,
-          lineHeight: 1.8,
-          color: "var(--ink)",
-          paddingLeft: 24,
-          margin: 0,
-          display: "flex",
-          flexDirection: "column",
-          gap: "var(--space-2)",
-        }}
-      >
-        <li>Open Strava&apos;s Account page (button below).</li>
-        <li>Scroll to &quot;Download or Delete Your Account&quot;.</li>
-        <li>Click &quot;Get Started&quot; → &quot;Request Your Archive&quot;.</li>
-        <li>Wait for the email (usually 5–10 min). Download the ZIP.</li>
-      </ol>
-
-      <button type="button" className="btn-primary" onClick={openStrava} style={{ alignSelf: "flex-start" }}>
-        Open Strava Settings ↗
-      </button>
-
-      <StatusBar text="Waiting on Strava&apos;s email. When the ZIP arrives, hit the button below." />
-
-      <button type="button" className="btn-orange" onClick={onContinue} style={{ alignSelf: "flex-start" }}>
-        I Have My ZIP — Upload It →
-      </button>
-    </div>
-  );
-}
-
-// --- Path B: upload -------------------------------------------------------
-
-function PathBUpload({
+function UploadScreen({
   onBack,
   onError,
-  onProcessing,
+  onUploading,
 }: {
   onBack: () => void;
   onError: (msg: string) => void;
-  onProcessing: () => void;
+  onUploading: () => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const openStrava = useCallback(() => {
+    window.open(STRAVA_ACCOUNT, "_blank");
+  }, []);
 
   function pick(f: File | null) {
     if (!f) {
@@ -503,7 +544,7 @@ function PathBUpload({
       return;
     }
     setSubmitting(true);
-    onProcessing();
+    onUploading();
     const form = new FormData();
     form.append("file", file);
     try {
@@ -525,16 +566,50 @@ function PathBUpload({
   }
 
   return (
-    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
+    <form
+      onSubmit={submit}
+      style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}
+    >
       <BackLink onClick={onBack} />
 
       <div>
-        <span className="caption">STEP 2 OF 2 — UPLOAD YOUR ARCHIVE</span>
+        <span className="caption">ALTERNATIVE METHOD</span>
         <h2 style={{ fontSize: "clamp(28px, 5vw, 40px)", margin: "var(--space-4) 0" }}>
-          Drop the ZIP here.
+          Upload Your Training History
         </h2>
       </div>
 
+      {/* Step 1 */}
+      <StepDivider label="STEP 1 — DOWNLOAD YOUR ARCHIVE" />
+      <ol
+        style={{
+          fontFamily: "var(--font-sans), sans-serif",
+          fontSize: 16,
+          lineHeight: 1.8,
+          color: "var(--ink)",
+          paddingLeft: 24,
+          margin: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--space-2)",
+        }}
+      >
+        <li>Open Strava&apos;s Account page (button below).</li>
+        <li>Scroll to &quot;Download or Delete Your Account&quot;.</li>
+        <li>Click &quot;Get Started&quot; → &quot;Request Your Archive&quot;.</li>
+        <li>Wait for the email (usually 5–10 min). Download the ZIP.</li>
+      </ol>
+      <button
+        type="button"
+        className="btn-primary"
+        onClick={openStrava}
+        style={{ alignSelf: "flex-start" }}
+      >
+        Open Strava Account ↗
+      </button>
+
+      {/* Step 2 */}
+      <StepDivider label="STEP 2 — UPLOAD THE FILE" />
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -562,10 +637,22 @@ function PathBUpload({
           justifyContent: "center",
         }}
       >
-        <p style={{ fontFamily: "var(--font-mono), monospace", fontSize: 15, letterSpacing: 1 }}>
+        <p
+          style={{
+            fontFamily: "var(--font-mono), monospace",
+            fontSize: 15,
+            letterSpacing: 1,
+          }}
+        >
           {file ? `✓ ${file.name}` : "Drag your ZIP or CSV here"}
         </p>
-        <p style={{ fontFamily: "var(--font-sans), sans-serif", fontSize: 14, color: "var(--mid-gray)" }}>
+        <p
+          style={{
+            fontFamily: "var(--font-sans), sans-serif",
+            fontSize: 14,
+            color: "var(--mid-gray)",
+          }}
+        >
           {file ? "Click to pick a different file" : "or click to browse"}
         </p>
         <input
@@ -577,6 +664,15 @@ function PathBUpload({
         />
       </div>
 
+      <button
+        type="submit"
+        className="btn-orange"
+        disabled={!file || submitting}
+        style={{ alignSelf: "flex-start", opacity: !file || submitting ? 0.6 : 1 }}
+      >
+        {submitting ? "Uploading…" : "Analyze My Data →"}
+      </button>
+
       <p
         style={{
           fontFamily: "var(--font-mono), monospace",
@@ -586,24 +682,15 @@ function PathBUpload({
           letterSpacing: 0.5,
         }}
       >
-        Strava&apos;s CSV export doesn&apos;t include heart rate — HR zone
+        Strava&apos;s file export doesn&apos;t include heart rate — HR zone
         analysis won&apos;t be available. Everything else (volume, gaps, races)
         works as normal.
       </p>
-
-      <button
-        type="submit"
-        className="btn-orange"
-        disabled={!file || submitting}
-        style={{ alignSelf: "flex-start", opacity: !file || submitting ? 0.6 : 1 }}
-      >
-        {submitting ? "Uploading…" : "Upload + Analyze →"}
-      </button>
     </form>
   );
 }
 
-function PathBProcessing() {
+function Uploading() {
   return (
     <CenteredLoad
       captionText="PARSING YOUR ARCHIVE"
@@ -615,7 +702,55 @@ function PathBProcessing() {
 
 // --- Shared bits ----------------------------------------------------------
 
-function CopyRow({ label, value }: { label: string; value: string }) {
+function StepDivider({ label }: { label: string }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "var(--space-4)",
+        marginTop: "var(--space-4)",
+      }}
+    >
+      <span
+        className="caption"
+        style={{
+          color: "var(--ink)",
+          letterSpacing: 3,
+          whiteSpace: "nowrap",
+        }}
+      >
+        {label}
+      </span>
+      <hr
+        style={{
+          flex: 1,
+          border: "none",
+          borderTop: "3px solid var(--ink)",
+          margin: 0,
+        }}
+      />
+    </div>
+  );
+}
+
+const instructionStyle: CSSProperties = {
+  fontFamily: "var(--font-sans), sans-serif",
+  fontSize: 16,
+  lineHeight: 1.7,
+  color: "var(--ink)",
+  maxWidth: 640,
+};
+
+function CopyRow({
+  label,
+  value,
+  dark = false,
+}: {
+  label: string;
+  value: string;
+  dark?: boolean;
+}) {
   const [copied, setCopied] = useState(false);
 
   async function copy() {
@@ -631,7 +766,7 @@ function CopyRow({ label, value }: { label: string; value: string }) {
   return (
     <div
       style={{
-        border: "3px solid var(--ink)",
+        border: `3px solid ${dark ? "var(--newsprint)" : "var(--ink)"}`,
         padding: "var(--space-4) var(--space-5)",
         display: "flex",
         alignItems: "center",
@@ -641,7 +776,10 @@ function CopyRow({ label, value }: { label: string; value: string }) {
       }}
     >
       <div style={{ flex: 1, minWidth: 220 }}>
-        <span className="caption" style={{ color: "var(--mid-gray)" }}>
+        <span
+          className="caption"
+          style={{ color: dark ? "var(--accent)" : "var(--mid-gray)" }}
+        >
           {label}
         </span>
         <p
@@ -650,6 +788,7 @@ function CopyRow({ label, value }: { label: string; value: string }) {
             fontSize: 16,
             marginTop: 4,
             wordBreak: "break-all",
+            color: dark ? "var(--newsprint)" : "var(--ink)",
           }}
         >
           {value}
@@ -658,7 +797,7 @@ function CopyRow({ label, value }: { label: string; value: string }) {
       <button
         type="button"
         onClick={copy}
-        style={copyButtonStyle(copied)}
+        style={copyButtonStyle(copied, dark)}
         aria-label={`Copy ${label}`}
       >
         {copied ? "✓ COPIED" : "COPY"}
@@ -667,7 +806,9 @@ function CopyRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function copyButtonStyle(copied: boolean): CSSProperties {
+function copyButtonStyle(copied: boolean, dark: boolean): CSSProperties {
+  const base = dark ? "var(--newsprint)" : "var(--ink)";
+  const text = dark ? "var(--ink)" : "var(--newsprint)";
   return {
     minHeight: 44,
     minWidth: 96,
@@ -676,9 +817,9 @@ function copyButtonStyle(copied: boolean): CSSProperties {
     fontSize: 12,
     letterSpacing: 2,
     textTransform: "uppercase",
-    background: copied ? "var(--confirm-green)" : "var(--ink)",
-    color: "var(--newsprint)",
-    border: `3px solid ${copied ? "var(--confirm-green)" : "var(--ink)"}`,
+    background: copied ? "var(--confirm-green)" : base,
+    color: copied ? "var(--newsprint)" : text,
+    border: `3px solid ${copied ? "var(--confirm-green)" : base}`,
     cursor: "pointer",
   };
 }
@@ -698,7 +839,15 @@ function FieldInput({
   placeholder?: string;
   type?: string;
   autoComplete?: string;
-  inputMode?: "text" | "numeric" | "decimal" | "email" | "tel" | "url" | "search" | "none";
+  inputMode?:
+    | "text"
+    | "numeric"
+    | "decimal"
+    | "email"
+    | "tel"
+    | "url"
+    | "search"
+    | "none";
 }) {
   return (
     <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
@@ -726,33 +875,6 @@ function FieldInput({
   );
 }
 
-function StatusBar({ text }: { text: string }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        gap: "var(--space-4)",
-        alignItems: "center",
-        border: "3px solid var(--ink)",
-        padding: "var(--space-4) var(--space-5)",
-        background: "var(--newsprint)",
-      }}
-    >
-      <LoadingBar />
-      <p
-        style={{
-          fontFamily: "var(--font-mono), monospace",
-          fontSize: 14,
-          letterSpacing: 0.5,
-          color: "var(--ink)",
-        }}
-      >
-        {text}
-      </p>
-    </div>
-  );
-}
-
 function CenteredLoad({
   captionText,
   title,
@@ -767,13 +889,31 @@ function CenteredLoad({
       <p className="caption" style={{ color: "var(--accent)" }}>
         {captionText}
       </p>
-      <h2 style={{ fontSize: "clamp(28px, 5vw, 44px)", margin: "var(--space-4) 0 var(--space-8)" }}>
+      <h2
+        style={{
+          fontSize: "clamp(28px, 5vw, 44px)",
+          margin: "var(--space-4) 0 var(--space-8)",
+        }}
+      >
         {title}
       </h2>
-      <div style={{ display: "flex", justifyContent: "center", marginBottom: "var(--space-6)" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          marginBottom: "var(--space-6)",
+        }}
+      >
         <LoadingBar />
       </div>
-      <p style={{ fontFamily: "var(--font-mono), monospace", fontSize: 15, color: "var(--mid-gray)", letterSpacing: 1 }}>
+      <p
+        style={{
+          fontFamily: "var(--font-mono), monospace",
+          fontSize: 15,
+          color: "var(--mid-gray)",
+          letterSpacing: 1,
+        }}
+      >
         {subtext}
       </p>
     </div>
@@ -831,4 +971,3 @@ function errorMessageFor(code: unknown): string | null {
       return null;
   }
 }
-
